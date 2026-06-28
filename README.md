@@ -4,10 +4,11 @@ Browser automation appliance with a real headed Chromium running inside Docker, 
 
 ## Demo
 
-[![AgentBrowser demo](assets/demo-cover.jpg)](assets/demo.mp4)
+![AgentBrowser demo](assets/demo.gif)
 
+- **GIF preview:** `assets/demo.gif`
 - **Video demo:** [`assets/demo.mp4`](assets/demo.mp4)
-- Click the image above to open the recording from the repository
+- **Static cover:** [`assets/demo-cover.jpg`](assets/demo-cover.jpg)
 
 ## Why this project exists
 
