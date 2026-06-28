@@ -1,3 +1,20 @@
+<div align="center">
+
+  <a href="https://t.me/aitorroma">
+    <img src="https://tva1.sinaimg.cn/large/008i3skNgy1gq8sv4q7cqj303k03kweo.jpg" alt="Aitor Roma" />
+  </a>
+
+  <br>
+
+  [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J64AN17)
+
+  <br>
+
+  <a href="https://t.me/aitorroma">
+    <img src="https://img.shields.io/badge/Telegram-informational?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Badge"/>
+  </a>
+</div>
+
 # AgentBrowser
 
 Browser automation appliance with a real headed Chromium running inside Docker, live remote desktop via Selkies/WebRTC, local CDP access for agents, Markdown extraction, and secure Bitwarden-assisted login flows.
