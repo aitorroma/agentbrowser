@@ -5,7 +5,7 @@ description: >
   Trigger: When the AI needs to operate the browser appliance, use Firefox via desktop control, use Chromium via CDP/browser tools, or drive the desktop autonomously from OpenCode or another MCP client.
 license: Apache-2.0
 metadata:
-  author: gentleman-programming
+  author: aitorroma
   version: "1.0"
 ---
 
