@@ -2,6 +2,13 @@
 
 Browser automation appliance with a real headed Chromium running inside Docker, live remote desktop via Selkies/WebRTC, local CDP access for agents, Markdown extraction, and secure Bitwarden-assisted login flows.
 
+## Demo
+
+[![AgentBrowser demo](assets/demo-cover.jpg)](assets/demo.mp4)
+
+- **Video demo:** [`assets/demo.mp4`](assets/demo.mp4)
+- Click the image above to open the recording from the repository
+
 ## Why this project exists
 
 Most browser automation stacks force you to choose between:
