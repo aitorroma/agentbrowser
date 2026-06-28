@@ -653,7 +653,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  agentbrowser-cli login namecheap.com     # Auto-login with Bitwarden
+  agentbrowser-cli login example.com       # Auto-login with Bitwarden
   agentbrowser-cli tabs                    # List browser tabs
   agentbrowser-cli navigate https://...    # Go to URL
   agentbrowser-cli fill "#email" "user@.." # Fill field
@@ -661,7 +661,7 @@ Examples:
   agentbrowser-cli eval "document.title"   # Run JavaScript
   agentbrowser-cli screenshot              # Take screenshot
   agentbrowser-cli bw list                 # List Bitwarden items
-  agentbrowser-cli bw get namecheap        # Get credentials
+  agentbrowser-cli bw get example          # Get credentials
   agentbrowser-cli desktop click 100 200   # Click at coordinates
         """
     )

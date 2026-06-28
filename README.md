@@ -57,14 +57,16 @@ El host publica `127.0.0.1:9222`, y dentro del contenedor se reenvía a la escuc
 
 ## Markdown renderizado / MCP
 
+Extracción a Markdown:
+
 ```bash
 curl 'http://127.0.0.1:8787/markdown?url=https://example.com'
+```
 
-MCP Streamable HTTP:
+Endpoint MCP Streamable HTTP:
 
 ```text
 http://127.0.0.1:8787/mcp
-```
 ```
 
 ## Login seguro con Bitwarden
@@ -88,13 +90,13 @@ Si prefieres inyectarlo por API, usa:
 ```bash
 curl -X POST http://127.0.0.1:8787/auth/bw/api \
   -H 'Content-Type: application/json' \
-  -d '{"server_url":"https://vault.example.com","username":"user@example.com","password":"***"}'
+  -d '{"server_url":"https://vault.example.com","username":"tu-correo@example.com","password":"***"}'
 ```
 
 Luego el agente solo necesita invocar la tool MCP/HTTP de alto nivel:
 
 ```json
-{"site":"namecheap.com","account":"ringwork"}
+{"site":"example.com","account":"default"}
 ```
 
 Endpoint HTTP equivalente:
@@ -102,7 +104,7 @@ Endpoint HTTP equivalente:
 ```bash
 curl -X POST http://127.0.0.1:8787/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"site":"namecheap.com","account":"ringwork"}'
+  -d '{"site":"example.com","account":"default"}'
 ```
 
 La respuesta devuelve solo estado (`logged_in`, `filled`, `otp_required`, etc.), nunca usuario, contraseña ni TOTP.

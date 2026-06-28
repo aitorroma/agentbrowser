@@ -63,7 +63,7 @@ metadata:
 
 1. `goto("https://example.com")`
 2. `click("text=Login")`
-3. `fill("#email", "user@example.com")`
+3. `fill("#email", "tu-correo@example.com")`
 4. `screenshot()`
 
 ## Commands
