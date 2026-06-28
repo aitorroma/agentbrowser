@@ -1,0 +1,66 @@
+services:
+  browser-appliance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-agentbrowser}-browser
+    shm_size: ${SHM_SIZE:-2gb}
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      DISPLAY: ${SELKIES_DISPLAY:-:20}
+      START_XFCE4: "true"
+      PASSWD: ${LINUX_USER_PASSWORD:-changeme-linux}
+      SELKIES_ENABLE_BASIC_AUTH: "true"
+      SELKIES_BASIC_AUTH_USER: ${SELKIES_BASIC_AUTH_USER:-operator}
+      SELKIES_BASIC_AUTH_PASSWORD: ${SELKIES_BASIC_AUTH_PASSWORD:-changeme-webrtc}
+      SELKIES_ENABLE_HTTPS: "false"
+      SELKIES_PORT: ${SELKIES_PORT:-8081}
+      NGINX_PORT: ${NGINX_PORT:-8080}
+      SELKIES_TURN_PROTOCOL: ${SELKIES_TURN_PROTOCOL:-udp}
+      SELKIES_TURN_PORT: ${SELKIES_TURN_PORT:-3478}
+      TURN_MIN_PORT: ${TURN_MIN_PORT:-65532}
+      TURN_MAX_PORT: ${TURN_MAX_PORT:-65535}
+      BROWSER_PROFILE_DIR: ${BROWSER_PROFILE_DIR:-/data/profile/chromium}
+      BROWSER_START_URL: ${BROWSER_START_URL:-about:blank}
+      BROWSER_WINDOW_SIZE: ${BROWSER_WINDOW_SIZE:-1366,768}
+      BROWSER_CDP_PORT: ${BROWSER_CDP_PORT:-9222}
+      BROWSER_CDP_BIND: ${BROWSER_CDP_BIND:-0.0.0.0}
+      BROWSER_CDP_CONNECT_HOST: ${BROWSER_CDP_CONNECT_HOST:-127.0.0.1}
+      BROWSER_API_HOST: ${BROWSER_API_HOST:-0.0.0.0}
+      BROWSER_API_PORT: ${BROWSER_API_PORT:-8787}
+      BROWSER_CDP_PROXY_PORT: ${BROWSER_CDP_PROXY_PORT:-9223}
+      BROWSER_DISABLE_SANDBOX: ${BROWSER_DISABLE_SANDBOX:-false}
+      OUTPUT_DIR: ${OUTPUT_DIR:-/data/output}
+      BROWSER_LOCALE: ${BROWSER_LOCALE:-es-ES}
+      BROWSER_TIMEZONE: ${BROWSER_TIMEZONE:-Europe/Madrid}
+      TZ: ${TZ:-Europe/Madrid}
+      LANG: ${LANG:-es_ES.UTF-8}
+      LC_ALL: ${LC_ALL:-es_ES.UTF-8}
+      LANGUAGE: ${LANGUAGE:-es_ES:es}
+      BROWSER_ACCEPT_LANGS: ${BROWSER_ACCEPT_LANGS:-es-ES,es}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost,browser-appliance}
+      BROWSER_PROXY_SERVER: ${BROWSER_PROXY_SERVER:-}
+      BROWSER_PROXY_BYPASS: ${BROWSER_PROXY_BYPASS:-localhost,127.0.0.1}
+      BW_SESSION: ${BW_SESSION:-}
+      BW_CLI: ${BW_CLI:-bw}
+      BW_STATE_DIR: ${BW_STATE_DIR:-/data/profile/bitwarden-state}
+      BW_STATE_KEY: ${BW_STATE_KEY:-}
+    volumes:
+      - browser_profile:/data/profile
+      - browser_output:/data/output
+    ports:
+      - "${SELKIES_WEB_PORT:-8080}:8080"
+      - "127.0.0.1:${BROWSER_CDP_PORT:-9222}:${BROWSER_CDP_PROXY_PORT:-9223}"
+      - "127.0.0.1:${BROWSER_API_PORT:-8787}:${BROWSER_API_PORT:-8787}"
+      - "${SELKIES_TURN_PORT:-3478}:3478/tcp"
+      - "${SELKIES_TURN_PORT:-3478}:3478/udp"
+      - "${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}:${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}/tcp"
+      - "${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}:${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}/udp"
+
+volumes:
+  browser_profile:
+  browser_output:

@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+playwright
+readabilipy
+markdownify
+httpx
+mcp
+cryptography
