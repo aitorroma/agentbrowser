@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export DISPLAY="${DISPLAY:-:20}"
-export HOME="${HOME:-/home/ubuntu}"
+export HOME="${HOME:-/config}"
+export XDG_RUNTIME_DIR="${BROWSER_XDG_RUNTIME_DIR:-/config/.XDG}"
+export WAYLAND_DISPLAY="${BROWSER_WAYLAND_DISPLAY:-${WAYLAND_DISPLAY:-wayland-0}}"
+export DISPLAY="${DISPLAY:-:1}"
 PROFILE_DIR="${BROWSER_PROFILE_DIR:-/data/profile/chromium}"
 OUTPUT_DIR="${OUTPUT_DIR:-/data/output}"
 CDP_BIND="${BROWSER_CDP_BIND:-127.0.0.1}"
@@ -13,6 +15,7 @@ LOCALE="${BROWSER_LOCALE:-es-ES}"
 LANG_LIST="${BROWSER_ACCEPT_LANGS:-${LOCALE},es}"
 DISABLE_SANDBOX="${BROWSER_DISABLE_SANDBOX:-false}"
 FORCE_RENDERER_ACCESSIBILITY="${BROWSER_FORCE_RENDERER_ACCESSIBILITY:-false}"
+OZONE_PLATFORM="${BROWSER_OZONE_PLATFORM:-x11}"
 
 mkdir -p "$PROFILE_DIR" "$OUTPUT_DIR"
 
@@ -21,7 +24,7 @@ rm -f \
   "$PROFILE_DIR/SingletonSocket" \
   "$PROFILE_DIR/SingletonCookie"
 
-python3 - <<PY
+python <<PY
 import json
 from pathlib import Path
 
@@ -51,19 +54,29 @@ for path, patch in targets:
     path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
 PY
 
-until [ -S "/tmp/.X11-unix/X${DISPLAY#*:}" ]; do
+for _ in $(seq 1 120); do
+  if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ]; then
+    break
+  fi
+  if [ -n "${DISPLAY:-}" ] && [ -S "/tmp/.X11-unix/X${DISPLAY#*:}" ]; then
+    break
+  fi
   sleep 0.5
 done
 
 gsettings set org.gnome.desktop.interface toolkit-accessibility true >/dev/null 2>&1 || true
 
-CHROME_BIN="$(
-/opt/appliance/venv/bin/python - <<'PY'
+if command -v google-chrome-stable >/dev/null 2>&1; then
+  CHROME_BIN="$(command -v google-chrome-stable)"
+else
+  CHROME_BIN="$(
+  /opt/appliance/venv/bin/python - <<'PY'
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     print(p.chromium.executable_path)
 PY
-)"
+  )"
+fi
 
 args=(
   "$CHROME_BIN"
@@ -78,7 +91,7 @@ args=(
   "--disable-features=Translate,AcceptCHFrame,MediaRouter,OptimizationHints,ProcessPerSiteUpToMainFrameThreshold"
   "--window-size=${WINDOW_SIZE}"
   "--lang=${LOCALE}"
-  "--ozone-platform=x11"
+  "--ozone-platform=${OZONE_PLATFORM}"
 )
 
 if [ "${DISABLE_SANDBOX}" = "true" ]; then
@@ -98,5 +111,4 @@ fi
 
 args+=("${START_URL}")
 
-echo "Launching Chromium with CDP at ${CDP_BIND}:${CDP_PORT}"
 exec "${args[@]}"

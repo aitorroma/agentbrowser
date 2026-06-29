@@ -65,6 +65,45 @@ class AppLaunchRequest(BaseModel):
     command: str
 
 
+class AppOpenRequest(BaseModel):
+    name: str
+
+
+class ThunarOpenRequest(BaseModel):
+    path: str | None = None
+
+
+class ThunarGoRequest(BaseModel):
+    path: str
+
+
+class WindowQueryRequest(BaseModel):
+    query: str
+
+
+class NiriActionRequest(BaseModel):
+    action: str
+    args: list[str] | None = None
+
+
+class NiriMsgRequest(BaseModel):
+    args: list[str]
+    json: bool = True
+
+
+class NiriSpawnRequest(BaseModel):
+    command: str
+    args: list[str] | None = None
+
+
+class OpenAppRequest(BaseModel):
+    app: str
+
+
+class WorkspaceRequest(BaseModel):
+    index: int
+
+
 class SecureLoginRequest(BaseModel):
     site: str
     account: str | None = None
@@ -90,10 +129,10 @@ def bw_auth_page(message: str = "", error: bool = False, status: dict[str, Any] 
         persisted = "sí" if status.get("persisted") else "no"
         status_html = f"""
         <div class="status-card">
-          <div><strong>Configurado:</strong> {configured}</div>
-          <div><strong>Persistido:</strong> {persisted}</div>
-          <div><strong>Server:</strong> {server}</div>
-          <div><strong>Usuario:</strong> {user}</div>
+          <div><span>Configurado</span><strong>{configured}</strong></div>
+          <div><span>Persistido</span><strong>{persisted}</strong></div>
+          <div><span>Servidor</span><strong>{server}</strong></div>
+          <div><span>Usuario</span><strong>{user}</strong></div>
         </div>
         """
     flash = f'<div class="flash {"error" if error else "ok"}">{message}</div>' if message else ""
@@ -102,42 +141,76 @@ def bw_auth_page(message: str = "", error: bool = False, status: dict[str, Any] 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bitwarden Login</title>
+  <title>Iniciar sesión | Bitwarden</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
-    body {{ font-family: system-ui, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; }}
-    .wrap {{ max-width: 560px; margin: 48px auto; padding: 24px; }}
-    .card {{ background:#111827; border:1px solid #334155; border-radius:16px; padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }}
-    h1 {{ margin-top:0; font-size: 28px; }}
-    p {{ color:#94a3b8; }}
-    label {{ display:block; margin:16px 0 6px; font-weight:600; }}
-    input {{ width:100%; box-sizing:border-box; padding:12px 14px; border-radius:10px; border:1px solid #475569; background:#020617; color:#e2e8f0; }}
-    button {{ margin-top:20px; width:100%; padding:12px 14px; border:0; border-radius:10px; background:#2563eb; color:white; font-weight:700; cursor:pointer; }}
-    .flash {{ margin:16px 0; padding:12px 14px; border-radius:10px; }}
-    .flash.ok {{ background:#052e16; color:#bbf7d0; border:1px solid #166534; }}
-    .flash.error {{ background:#450a0a; color:#fecaca; border:1px solid #991b1b; }}
-    .status-card {{ margin:16px 0; padding:12px 14px; border-radius:10px; background:#0b1220; border:1px solid #334155; color:#cbd5e1; }}
-    .hint {{ font-size:12px; color:#94a3b8; margin-top:8px; }}
+    :root {{ --bw-blue:#175ddc; --bw-blue-hover:#1252be; }}
+    * {{ box-sizing:border-box; }}
+    body {{
+      font-family:'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:#f7f8fa; color:#1b2029; margin:0; min-height:100vh;
+      display:flex; flex-direction:column; align-items:center;
+    }}
+    .brand {{ margin:56px 0 28px; display:flex; align-items:center; gap:12px; }}
+    .brand svg {{ display:block; }}
+    .brand .word {{ font-size:30px; font-weight:700; letter-spacing:-.5px; color:#175ddc; }}
+    .card {{
+      width:min(92vw,420px); background:#fff; border:1px solid #e3e6ec; border-radius:8px;
+      padding:32px; box-shadow:0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(23,93,220,.06);
+    }}
+    h1 {{ margin:0 0 6px; font-size:20px; font-weight:700; }}
+    .sub {{ margin:0 0 20px; font-size:13px; color:#6b7280; line-height:1.5; }}
+    label {{ display:block; margin:14px 0 5px; font-weight:700; font-size:13px; color:#28303f; }}
+    input {{
+      width:100%; padding:11px 13px; font-size:14px; font-family:inherit;
+      border:1px solid #ced4dc; border-radius:6px; background:#fff; color:#1b2029; transition:border-color .15s, box-shadow .15s;
+    }}
+    input:focus {{ outline:none; border-color:var(--bw-blue); box-shadow:0 0 0 3px rgba(23,93,220,.15); }}
+    button {{
+      margin-top:22px; width:100%; padding:12px 14px; font-size:15px; font-weight:700; font-family:inherit;
+      border:0; border-radius:6px; background:var(--bw-blue); color:#fff; cursor:pointer; transition:background .15s;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+    }}
+    button:hover {{ background:var(--bw-blue-hover); }}
+    .flash {{ margin:0 0 18px; padding:11px 13px; border-radius:6px; font-size:13px; display:flex; gap:8px; align-items:flex-start; }}
+    .flash.ok {{ background:#e9f6ee; color:#1c7e3f; border:1px solid #b7e2c6; }}
+    .flash.error {{ background:#fdecec; color:#c12f2f; border:1px solid #f5c2c2; }}
+    .status-card {{ margin:0 0 18px; border:1px solid #e3e6ec; border-radius:6px; overflow:hidden; }}
+    .status-card div {{ display:flex; justify-content:space-between; padding:9px 13px; font-size:13px; border-top:1px solid #eef0f4; }}
+    .status-card div:first-child {{ border-top:0; }}
+    .status-card span {{ color:#6b7280; }}
+    .status-card strong {{ color:#28303f; }}
+    .hint {{ font-size:12px; color:#9aa1ad; margin-top:16px; text-align:center; line-height:1.5; }}
+    .footer {{ margin:24px 0 40px; font-size:12px; color:#9aa1ad; }}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Conectar Bitwarden</h1>
-      <p>La API guardará la sesión en memoria dentro del servicio y la usará para `secure_login` sin exponer credenciales al agente.</p>
-      {flash}
-      {status_html}
-      <form method="post" action="/auth/bw">
-        <label for="server_url">URL self-hosted</label>
-        <input id="server_url" name="server_url" type="url" placeholder="https://vault.tudominio.com" required />
-        <label for="username">Usuario / email</label>
-        <input id="username" name="username" type="text" autocomplete="username" required />
-        <label for="password">Master password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required />
-        <button type="submit">Iniciar sesión en Bitwarden</button>
-        <div class="hint">Después podrás usar `/auth/login` o la tool MCP `secure_login` sin volver a pasar las credenciales.</div>
-      </form>
-    </div>
+  <div class="brand">
+    <svg width="42" height="42" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#175ddc" d="M12 1.5 3.4 4.2v7.1c0 5.2 3.9 9.9 8.6 11.2 4.7-1.3 8.6-6 8.6-11.2V4.2L12 1.5z"/>
+      <path fill="#fff" d="M12 4.1v15.4c-3.3-1.2-5.9-4.8-5.9-8.4V5.9L12 4.1zm1.6 3.2v2.1h2.7v1.8h-2.7v3.3c0 .6.3.9.9.9h1.8v1.8h-2.1c-1.5 0-2.4-.9-2.4-2.4V7.3h1.8z"/>
+    </svg>
+    <span class="word">bitwarden</span>
   </div>
+  <div class="card">
+    <h1>Inicia sesión en tu bóveda</h1>
+    <p class="sub">La sesión se guarda en el servicio y se usa para <code>secure_login</code> sin exponer credenciales al agente.</p>
+    {flash}
+    {status_html}
+    <form method="post" action="/auth/bw">
+      <label for="server_url">URL del servidor</label>
+      <input id="server_url" name="server_url" type="url" placeholder="https://vault.tudominio.com" required />
+      <label for="username">Dirección de correo</label>
+      <input id="username" name="username" type="text" autocomplete="username" placeholder="nombre@ejemplo.com" required />
+      <label for="password">Contraseña maestra</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button type="submit">Iniciar sesión</button>
+      <div class="hint">Después podrás usar <code>/auth/login</code> o la tool <code>secure_login</code> sin volver a introducir las credenciales.</div>
+    </form>
+  </div>
+  <div class="footer">AgentBrowser · sesión Bitwarden gestionada por el servicio</div>
 </body>
 </html>"""
 
@@ -236,6 +309,21 @@ async def window_focus(query: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def window_maximize(query: str) -> dict[str, Any]:
+    return await desktop_service.window_maximize(query)
+
+
+@mcp.tool()
+async def window_minimize(query: str) -> dict[str, Any]:
+    return await desktop_service.window_minimize(query)
+
+
+@mcp.tool()
+async def window_restore(query: str) -> dict[str, Any]:
+    return await desktop_service.window_restore(query)
+
+
+@mcp.tool()
 async def app_list() -> dict[str, Any]:
     return await desktop_service.app_list()
 
@@ -246,8 +334,183 @@ async def app_launch(command: str) -> dict[str, Any]:
 
 
 @mcp.tool()
+async def app_open(name: str) -> dict[str, Any]:
+    return await desktop_service.app_open(name)
+
+
+@mcp.tool()
 async def app_status(query: str) -> dict[str, Any]:
     return await desktop_service.app_status(query)
+
+
+@mcp.tool()
+async def thunar_open(path: str | None = None) -> dict[str, Any]:
+    return await desktop_service.thunar_open(path)
+
+
+@mcp.tool()
+async def thunar_go(path: str) -> dict[str, Any]:
+    return await desktop_service.thunar_go(path)
+
+
+@mcp.tool()
+async def thunar_action(action: str) -> dict[str, Any]:
+    return await desktop_service.thunar_action(action)
+
+
+@mcp.tool()
+async def thunar_tree(max_depth: int = 5, max_children: int = 40) -> dict[str, Any]:
+    return await desktop_service.thunar_tree(max_depth=max_depth, max_children=max_children)
+
+
+@mcp.tool()
+async def firefox_maximize() -> dict[str, Any]:
+    return await desktop_service.firefox_maximize()
+
+
+@mcp.tool()
+async def chrome_maximize() -> dict[str, Any]:
+    return await desktop_service.chrome_maximize()
+
+
+@mcp.tool()
+async def thunar_maximize() -> dict[str, Any]:
+    return await desktop_service.thunar_maximize()
+
+
+@mcp.tool()
+async def niri_start() -> dict[str, Any]:
+    return await desktop_service.niri_start()
+
+
+@mcp.tool()
+async def niri_status() -> dict[str, Any]:
+    return await desktop_service.niri_status()
+
+
+@mcp.tool()
+async def noctalia_start() -> dict[str, Any]:
+    return await desktop_service.noctalia_start()
+
+
+@mcp.tool()
+async def noctalia_status() -> dict[str, Any]:
+    return await desktop_service.noctalia_status()
+
+
+@mcp.tool()
+async def niri_action(action: str, args: list[str] | None = None) -> dict[str, Any]:
+    """Perform any niri compositor action (full `niri msg action` set): focus or
+    move windows/columns, switch workspaces and monitors, fullscreen, floating,
+    overview, column widths, screenshots, spawn, etc."""
+    return await desktop_service.niri_action(action, args)
+
+
+@mcp.tool()
+async def niri_msg(args: list[str], json: bool = True) -> dict[str, Any]:
+    """Run an arbitrary `niri msg` subcommand (windows, workspaces, outputs,
+    focused-window, action, output, ...) and return its JSON output."""
+    return await desktop_service.niri_msg(args, json)
+
+
+@mcp.tool()
+async def niri_windows() -> dict[str, Any]:
+    return await desktop_service.niri_windows()
+
+
+@mcp.tool()
+async def niri_workspaces() -> dict[str, Any]:
+    return await desktop_service.niri_workspaces()
+
+
+@mcp.tool()
+async def niri_outputs() -> dict[str, Any]:
+    return await desktop_service.niri_outputs()
+
+
+@mcp.tool()
+async def niri_focused_window() -> dict[str, Any]:
+    return await desktop_service.niri_focused_window()
+
+
+@mcp.tool()
+async def niri_spawn(command: str, args: list[str] | None = None) -> dict[str, Any]:
+    """Spawn any command as a child of the niri compositor (correct Wayland
+    session). Use this to launch arbitrary desktop apps under niri."""
+    return await desktop_service.niri_spawn(command, args)
+
+
+@mcp.tool()
+async def open_app(app: str) -> dict[str, Any]:
+    """Launch a known desktop app by name: launcher/fuzzel, terminal/foot,
+    firefox, thunar/files, chromium."""
+    return await desktop_service.open_app(app)
+
+
+@mcp.tool()
+async def open_launcher() -> dict[str, Any]:
+    """Open the fuzzel application launcher (same as Super+D)."""
+    return await desktop_service.open_launcher()
+
+
+@mcp.tool()
+async def open_terminal() -> dict[str, Any]:
+    """Open a foot terminal (same as Super+T)."""
+    return await desktop_service.open_terminal()
+
+
+@mcp.tool()
+async def open_firefox() -> dict[str, Any]:
+    """Open Firefox (same as Super+B)."""
+    return await desktop_service.open_firefox()
+
+
+@mcp.tool()
+async def open_files() -> dict[str, Any]:
+    """Open the default file manager (Dolphin)."""
+    return await desktop_service.open_files()
+
+
+@mcp.tool()
+async def open_dolphin() -> dict[str, Any]:
+    """Open the Dolphin file manager."""
+    return await desktop_service.open_dolphin()
+
+
+@mcp.tool()
+async def workspace_goto(reference: str) -> dict[str, Any]:
+    """Switch to a workspace by 1-based index or by name."""
+    return await desktop_service.workspace_goto(reference)
+
+
+@mcp.tool()
+async def workspace_next() -> dict[str, Any]:
+    """Switch to the next workspace (down)."""
+    return await desktop_service.workspace_next()
+
+
+@mcp.tool()
+async def workspace_prev() -> dict[str, Any]:
+    """Switch to the previous workspace (up)."""
+    return await desktop_service.workspace_prev()
+
+
+@mcp.tool()
+async def move_window_to_workspace(index: int) -> dict[str, Any]:
+    """Move the focused window to the workspace with the given 1-based index."""
+    return await desktop_service.move_window_to_workspace(index)
+
+
+@mcp.tool()
+async def workspace_set_name(name: str) -> dict[str, Any]:
+    """Name the focused workspace so it can be switched to by name."""
+    return await desktop_service.workspace_set_name(name)
+
+
+@mcp.tool()
+async def screenshot_window(query: str | None = None) -> dict[str, Any]:
+    """Screenshot a single window (focused, or matched by id/title/app_id)."""
+    return await desktop_service.screen_shot_window(query)
 
 
 @mcp.tool()
@@ -287,6 +550,37 @@ async def configure_bitwarden(server_url: str, username: str, password: str) -> 
 @mcp.tool()
 async def logout_bitwarden() -> dict[str, Any]:
     return await browser_service.logout_bitwarden()
+
+
+@mcp.tool()
+async def webauthn_enable(resident_key: bool = True, user_verification: bool = True) -> dict[str, Any]:
+    """Attach a software (virtual) authenticator so the browser can register and
+    use passkeys / WebAuthn. Restores previously persisted credentials."""
+    return await browser_service.webauthn_enable(resident_key, user_verification)
+
+
+@mcp.tool()
+async def webauthn_status() -> dict[str, Any]:
+    """Report whether the virtual authenticator is active and how many passkeys it holds."""
+    return await browser_service.webauthn_status()
+
+
+@mcp.tool()
+async def webauthn_list_credentials() -> dict[str, Any]:
+    """List passkey metadata (rpId, userHandle, signCount) — never private keys."""
+    return await browser_service.webauthn_list_credentials()
+
+
+@mcp.tool()
+async def webauthn_save() -> dict[str, Any]:
+    """Persist current passkeys to the profile so they survive a restart."""
+    return await browser_service.webauthn_save()
+
+
+@mcp.tool()
+async def webauthn_disable() -> dict[str, Any]:
+    """Detach the virtual authenticator."""
+    return await browser_service.webauthn_disable()
 
 
 @asynccontextmanager
@@ -337,6 +631,34 @@ async def bitwarden_auth_api(request: BitwardenConfigRequest) -> dict[str, Any]:
 @app.post("/auth/bw/logout")
 async def bitwarden_auth_logout() -> dict[str, Any]:
     return await browser_service.logout_bitwarden()
+
+
+@app.post("/webauthn/enable")
+async def webauthn_enable_http(
+    resident_key: bool = Query(True),
+    user_verification: bool = Query(True),
+) -> dict[str, Any]:
+    return await browser_service.webauthn_enable(resident_key, user_verification)
+
+
+@app.get("/webauthn/status")
+async def webauthn_status_http() -> dict[str, Any]:
+    return await browser_service.webauthn_status()
+
+
+@app.get("/webauthn/credentials")
+async def webauthn_credentials_http() -> dict[str, Any]:
+    return await browser_service.webauthn_list_credentials()
+
+
+@app.post("/webauthn/save")
+async def webauthn_save_http() -> dict[str, Any]:
+    return await browser_service.webauthn_save()
+
+
+@app.post("/webauthn/disable")
+async def webauthn_disable_http() -> dict[str, Any]:
+    return await browser_service.webauthn_disable()
 
 
 @app.get("/markdown")
@@ -414,6 +736,21 @@ async def desktop_window_focus_http(query: str = Query(...)) -> dict[str, Any]:
     return await desktop_service.window_focus(query)
 
 
+@app.post("/desktop/windows/maximize")
+async def desktop_window_maximize_http(request: WindowQueryRequest) -> dict[str, Any]:
+    return await desktop_service.window_maximize(request.query)
+
+
+@app.post("/desktop/windows/minimize")
+async def desktop_window_minimize_http(request: WindowQueryRequest) -> dict[str, Any]:
+    return await desktop_service.window_minimize(request.query)
+
+
+@app.post("/desktop/windows/restore")
+async def desktop_window_restore_http(request: WindowQueryRequest) -> dict[str, Any]:
+    return await desktop_service.window_restore(request.query)
+
+
 @app.get("/desktop/apps")
 async def desktop_apps_http() -> dict[str, Any]:
     return await desktop_service.app_list()
@@ -424,9 +761,167 @@ async def desktop_app_launch_http(request: AppLaunchRequest) -> dict[str, Any]:
     return await desktop_service.app_launch(request.command)
 
 
+@app.post("/desktop/apps/open")
+async def desktop_app_open_http(request: AppOpenRequest) -> dict[str, Any]:
+    return await desktop_service.app_open(request.name)
+
+
 @app.get("/desktop/apps/status")
 async def desktop_app_status_http(query: str = Query(...)) -> dict[str, Any]:
     return await desktop_service.app_status(query)
+
+
+@app.post("/desktop/thunar/open")
+async def desktop_thunar_open_http(request: ThunarOpenRequest) -> dict[str, Any]:
+    return await desktop_service.thunar_open(path=request.path)
+
+
+@app.post("/desktop/thunar/go")
+async def desktop_thunar_go_http(request: ThunarGoRequest) -> dict[str, Any]:
+    return await desktop_service.thunar_go(request.path)
+
+
+@app.post("/desktop/thunar/action")
+async def desktop_thunar_action_http(action: str = Query(...)) -> dict[str, Any]:
+    return await desktop_service.thunar_action(action)
+
+
+@app.get("/desktop/thunar/tree")
+async def desktop_thunar_tree_http(
+    max_depth: int = Query(5, ge=1, le=10),
+    max_children: int = Query(40, ge=1, le=200),
+) -> dict[str, Any]:
+    return await desktop_service.thunar_tree(max_depth=max_depth, max_children=max_children)
+
+
+@app.post("/desktop/firefox/maximize")
+async def desktop_firefox_maximize_http() -> dict[str, Any]:
+    return await desktop_service.firefox_maximize()
+
+
+@app.post("/desktop/chrome/maximize")
+async def desktop_chrome_maximize_http() -> dict[str, Any]:
+    return await desktop_service.chrome_maximize()
+
+
+@app.post("/desktop/thunar/maximize")
+async def desktop_thunar_maximize_http() -> dict[str, Any]:
+    return await desktop_service.thunar_maximize()
+
+
+@app.post("/desktop/niri/start")
+async def desktop_niri_start_http() -> dict[str, Any]:
+    return await desktop_service.niri_start()
+
+
+@app.get("/desktop/niri/status")
+async def desktop_niri_status_http() -> dict[str, Any]:
+    return await desktop_service.niri_status()
+
+
+@app.post("/desktop/noctalia/start")
+async def desktop_noctalia_start_http() -> dict[str, Any]:
+    return await desktop_service.noctalia_start()
+
+
+@app.get("/desktop/noctalia/status")
+async def desktop_noctalia_status_http() -> dict[str, Any]:
+    return await desktop_service.noctalia_status()
+
+
+@app.post("/desktop/niri/action")
+async def desktop_niri_action_http(request: NiriActionRequest) -> dict[str, Any]:
+    return await desktop_service.niri_action(request.action, request.args)
+
+
+@app.post("/desktop/niri/msg")
+async def desktop_niri_msg_http(request: NiriMsgRequest) -> dict[str, Any]:
+    return await desktop_service.niri_msg(request.args, request.json)
+
+
+@app.get("/desktop/niri/windows")
+async def desktop_niri_windows_http() -> dict[str, Any]:
+    return await desktop_service.niri_windows()
+
+
+@app.get("/desktop/niri/workspaces")
+async def desktop_niri_workspaces_http() -> dict[str, Any]:
+    return await desktop_service.niri_workspaces()
+
+
+@app.get("/desktop/niri/outputs")
+async def desktop_niri_outputs_http() -> dict[str, Any]:
+    return await desktop_service.niri_outputs()
+
+
+@app.get("/desktop/niri/focused-window")
+async def desktop_niri_focused_window_http() -> dict[str, Any]:
+    return await desktop_service.niri_focused_window()
+
+
+@app.post("/desktop/niri/spawn")
+async def desktop_niri_spawn_http(request: NiriSpawnRequest) -> dict[str, Any]:
+    return await desktop_service.niri_spawn(request.command, request.args)
+
+
+@app.post("/desktop/apps/open-named")
+async def desktop_open_app_http(request: OpenAppRequest) -> dict[str, Any]:
+    return await desktop_service.open_app(request.app)
+
+
+@app.post("/desktop/apps/launcher")
+async def desktop_open_launcher_http() -> dict[str, Any]:
+    return await desktop_service.open_launcher()
+
+
+@app.post("/desktop/apps/terminal")
+async def desktop_open_terminal_http() -> dict[str, Any]:
+    return await desktop_service.open_terminal()
+
+
+@app.post("/desktop/apps/firefox")
+async def desktop_open_firefox_http() -> dict[str, Any]:
+    return await desktop_service.open_firefox()
+
+
+@app.post("/desktop/apps/files")
+async def desktop_open_files_http() -> dict[str, Any]:
+    return await desktop_service.open_files()
+
+
+@app.post("/desktop/apps/dolphin")
+async def desktop_open_dolphin_http() -> dict[str, Any]:
+    return await desktop_service.open_dolphin()
+
+
+@app.post("/desktop/niri/workspace/goto")
+async def desktop_workspace_goto_http(request: WorkspaceRequest) -> dict[str, Any]:
+    return await desktop_service.workspace_goto(request.index)
+
+
+@app.post("/desktop/niri/workspace/next")
+async def desktop_workspace_next_http() -> dict[str, Any]:
+    return await desktop_service.workspace_next()
+
+
+@app.post("/desktop/niri/workspace/prev")
+async def desktop_workspace_prev_http() -> dict[str, Any]:
+    return await desktop_service.workspace_prev()
+
+
+@app.post("/desktop/niri/workspace/move-window")
+async def desktop_move_window_to_workspace_http(request: WorkspaceRequest) -> dict[str, Any]:
+    return await desktop_service.move_window_to_workspace(request.index)
+
+
+@app.post("/desktop/niri/workspace/set-name")
+async def desktop_workspace_set_name_http(name: str = Query(...)) -> dict[str, Any]:
+    return await desktop_service.workspace_set_name(name)
+
+
+@app.post("/desktop/screenshot/window")
+async def desktop_screenshot_window_http(query: str | None = Query(None)) -> dict[str, Any]:
+    return await desktop_service.screen_shot_window(query)
 
 
 @app.get("/auth/accounts")

@@ -3,25 +3,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-agentbrowser}-browser
+    container_name: ${COMPOSE_PROJECT_NAME:-agentbrowser-arch}-browser
+    hostname: ${BROWSER_HOSTNAME:-browseragent}
     shm_size: ${SHM_SIZE:-2gb}
     restart: unless-stopped
     cap_add:
       - SYS_ADMIN
     environment:
-      DISPLAY: ${SELKIES_DISPLAY:-:20}
-      START_XFCE4: "true"
-      PASSWD: ${LINUX_USER_PASSWORD:-changeme-linux}
-      SELKIES_ENABLE_BASIC_AUTH: "true"
-      SELKIES_BASIC_AUTH_USER: ${SELKIES_BASIC_AUTH_USER:-operator}
-      SELKIES_BASIC_AUTH_PASSWORD: ${SELKIES_BASIC_AUTH_PASSWORD:-changeme-webrtc}
-      SELKIES_ENABLE_HTTPS: "false"
-      SELKIES_PORT: ${SELKIES_PORT:-8081}
-      NGINX_PORT: ${NGINX_PORT:-8080}
-      SELKIES_TURN_PROTOCOL: ${SELKIES_TURN_PROTOCOL:-udp}
-      SELKIES_TURN_PORT: ${SELKIES_TURN_PORT:-3478}
-      TURN_MIN_PORT: ${TURN_MIN_PORT:-65532}
-      TURN_MAX_PORT: ${TURN_MAX_PORT:-65535}
+      DESKTOP_SESSION_FLAVOR: ${DESKTOP_SESSION_FLAVOR:-noctalia-niri}
+      PRIMARY_COMPOSITOR: ${PRIMARY_COMPOSITOR:-niri}
+      YDOTOOL_SOCKET: ${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}
+      PIXELFLUX_WAYLAND: ${PIXELFLUX_WAYLAND:-true}
+      SELKIES_DESKTOP: ${SELKIES_DESKTOP:-true}
+      CUSTOM_USER: ${SELKIES_BASIC_AUTH_USER:-operator}
+      PASSWORD: ${SELKIES_BASIC_AUTH_PASSWORD:-change-me-webrtc}
       BROWSER_PROFILE_DIR: ${BROWSER_PROFILE_DIR:-/data/profile/chromium}
       BROWSER_START_URL: ${BROWSER_START_URL:-about:blank}
       BROWSER_WINDOW_SIZE: ${BROWSER_WINDOW_SIZE:-1366,768}
@@ -32,6 +27,7 @@ services:
       BROWSER_API_PORT: ${BROWSER_API_PORT:-8787}
       BROWSER_CDP_PROXY_PORT: ${BROWSER_CDP_PROXY_PORT:-9223}
       BROWSER_DISABLE_SANDBOX: ${BROWSER_DISABLE_SANDBOX:-false}
+      BROWSER_FORCE_RENDERER_ACCESSIBILITY: ${BROWSER_FORCE_RENDERER_ACCESSIBILITY:-false}
       OUTPUT_DIR: ${OUTPUT_DIR:-/data/output}
       BROWSER_LOCALE: ${BROWSER_LOCALE:-es-ES}
       BROWSER_TIMEZONE: ${BROWSER_TIMEZONE:-Europe/Madrid}
@@ -49,17 +45,16 @@ services:
       BW_CLI: ${BW_CLI:-bw}
       BW_STATE_DIR: ${BW_STATE_DIR:-/data/profile/bitwarden-state}
       BW_STATE_KEY: ${BW_STATE_KEY:-}
+      WEBAUTHN_STATE_DIR: ${WEBAUTHN_STATE_DIR:-/data/profile/webauthn}
     volumes:
       - browser_profile:/data/profile
       - browser_output:/data/output
     ports:
-      - "${SELKIES_WEB_PORT:-8080}:8080"
-      - "127.0.0.1:${BROWSER_CDP_PORT:-9222}:${BROWSER_CDP_PROXY_PORT:-9223}"
-      - "127.0.0.1:${BROWSER_API_PORT:-8787}:${BROWSER_API_PORT:-8787}"
-      - "${SELKIES_TURN_PORT:-3478}:3478/tcp"
-      - "${SELKIES_TURN_PORT:-3478}:3478/udp"
-      - "${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}:${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}/tcp"
-      - "${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}:${TURN_MIN_PORT:-65532}-${TURN_MAX_PORT:-65535}/udp"
+      - "${SELKIES_WEB_PORT:-18080}:3000"
+      - "${SELKIES_HTTPS_PORT:-18443}:3001"
+      - "127.0.0.1:${BROWSER_CDP_HOST_PORT:-19222}:${BROWSER_CDP_PROXY_PORT:-9223}"
+      - "127.0.0.1:${BROWSER_API_HOST_PORT:-18787}:${BROWSER_API_PORT:-8787}"
+      - "127.0.0.1:${SELKIES_WS_PORT:-18082}:8082"
 
 volumes:
   browser_profile:

@@ -43,6 +43,11 @@ class BrowserService:
         self.bw_state_file = self.bw_state_dir / "session.enc"
         self._bw_persistence_secret = os.getenv("BW_STATE_KEY", "").strip()
         self._bw_restore_state()
+        # WebAuthn / passkeys via a CDP virtual authenticator
+        self._webauthn_authenticator_id: str | None = None
+        self.webauthn_state_dir = Path(os.getenv("WEBAUTHN_STATE_DIR", "/data/profile/webauthn"))
+        self.webauthn_state_dir.mkdir(parents=True, exist_ok=True)
+        self.webauthn_state_file = self.webauthn_state_dir / "credentials.json"
 
     async def _fetch_ws_endpoint(self) -> str:
         url = f"http://{self.cdp_bind}:{self.cdp_port}/json/version"
@@ -87,6 +92,13 @@ class BrowserService:
                 raise
 
     async def health(self) -> dict[str, Any]:
+        ws_endpoint = ""
+        try:
+            ws_endpoint = await self._fetch_ws_endpoint()
+        except Exception as exc:
+            ws_error = str(exc)
+        else:
+            ws_error = ""
         try:
             page = await self._page()
             current_url = page.url
@@ -94,15 +106,17 @@ class BrowserService:
             current_url = ""
             return {
                 "ok": False,
-                "ws_endpoint": await self._fetch_ws_endpoint(),
+                "ws_endpoint": ws_endpoint,
                 "current_url": current_url,
                 "reason": str(exc),
+                "ws_error": ws_error,
                 "bitwarden_configured": bool(self._bw_session_token or os.getenv("BW_SESSION")),
             }
         return {
             "ok": True,
-            "ws_endpoint": await self._fetch_ws_endpoint(),
+            "ws_endpoint": ws_endpoint,
             "current_url": current_url,
+            "ws_error": ws_error,
             "bitwarden_configured": bool(self._bw_session_token or os.getenv("BW_SESSION")),
         }
 
@@ -650,6 +664,151 @@ class BrowserService:
                 "markdown": markdown,
                 "path": str(md_path),
             }
+
+    # --- WebAuthn / passkeys -------------------------------------------------
+    # A CDP virtual authenticator lets the agent register and use passkeys fully
+    # in software (the same mechanism Playwright uses to test WebAuthn). There is
+    # no biometric hardware in the container, so this is the only way to drive
+    # passkey flows. Credentials are software-backed and persisted to the profile.
+
+    async def _webauthn_cdp(self):
+        page = await self._page()
+        session = await page.context.new_cdp_session(page)
+        await session.send("WebAuthn.enable", {"enableUI": False})
+        return session
+
+    async def webauthn_enable(
+        self,
+        resident_key: bool = True,
+        user_verification: bool = True,
+        transport: str = "internal",
+    ) -> dict[str, Any]:
+        """Attach a virtual authenticator so the browser can create and use
+        passkeys. Restores any previously persisted credentials."""
+        async with self._lock:
+            session = await self._webauthn_cdp()
+            result = await session.send(
+                "WebAuthn.addVirtualAuthenticator",
+                {
+                    "options": {
+                        "protocol": "ctap2",
+                        "transport": transport,
+                        "hasResidentKey": resident_key,
+                        "hasUserVerification": user_verification,
+                        "isUserVerified": True,
+                        "automaticPresenceSimulation": True,
+                    }
+                },
+            )
+            self._webauthn_authenticator_id = result["authenticatorId"]
+            restored = await self._webauthn_restore(session)
+            return {
+                "ok": True,
+                "authenticator_id": self._webauthn_authenticator_id,
+                "resident_key": resident_key,
+                "user_verification": user_verification,
+                "restored_credentials": restored,
+            }
+
+    async def _webauthn_require(self):
+        if not self._webauthn_authenticator_id:
+            raise RuntimeError("WebAuthn not enabled — call webauthn_enable first")
+        return await self._webauthn_cdp()
+
+    async def webauthn_status(self) -> dict[str, Any]:
+        async with self._lock:
+            if not self._webauthn_authenticator_id:
+                return {"enabled": False, "credentials": 0, "persisted": self.webauthn_state_file.exists()}
+            session = await self._webauthn_cdp()
+            try:
+                result = await session.send(
+                    "WebAuthn.getCredentials",
+                    {"authenticatorId": self._webauthn_authenticator_id},
+                )
+                creds = result.get("credentials", [])
+            except Exception:
+                # authenticator went away (browser restart); mark disabled
+                self._webauthn_authenticator_id = None
+                return {"enabled": False, "credentials": 0, "persisted": self.webauthn_state_file.exists()}
+            return {
+                "enabled": True,
+                "authenticator_id": self._webauthn_authenticator_id,
+                "credentials": len(creds),
+                "rp_ids": sorted({c.get("rpId") for c in creds if c.get("rpId")}),
+                "persisted": self.webauthn_state_file.exists(),
+            }
+
+    async def webauthn_list_credentials(self) -> dict[str, Any]:
+        async with self._lock:
+            session = await self._webauthn_require()
+            result = await session.send(
+                "WebAuthn.getCredentials",
+                {"authenticatorId": self._webauthn_authenticator_id},
+            )
+            creds = result.get("credentials", [])
+            # Never return private keys to the agent; surface safe metadata only.
+            safe = [
+                {
+                    "credentialId": c.get("credentialId"),
+                    "rpId": c.get("rpId"),
+                    "userHandle": c.get("userHandle"),
+                    "signCount": c.get("signCount"),
+                    "isResidentCredential": c.get("isResidentCredential"),
+                }
+                for c in creds
+            ]
+            return {"ok": True, "count": len(safe), "credentials": safe}
+
+    async def webauthn_save(self) -> dict[str, Any]:
+        """Persist the current credentials (incl. private keys) to the profile so
+        passkeys survive a browser/container restart."""
+        async with self._lock:
+            session = await self._webauthn_require()
+            result = await session.send(
+                "WebAuthn.getCredentials",
+                {"authenticatorId": self._webauthn_authenticator_id},
+            )
+            creds = result.get("credentials", [])
+            self.webauthn_state_file.write_text(json.dumps(creds), encoding="utf-8")
+            try:
+                os.chmod(self.webauthn_state_file, 0o600)
+            except PermissionError:
+                pass
+            return {"ok": True, "saved": len(creds), "path": str(self.webauthn_state_file)}
+
+    async def _webauthn_restore(self, session) -> int:
+        if not self.webauthn_state_file.exists():
+            return 0
+        try:
+            creds = json.loads(self.webauthn_state_file.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            return 0
+        restored = 0
+        for c in creds:
+            try:
+                await session.send(
+                    "WebAuthn.addCredential",
+                    {"authenticatorId": self._webauthn_authenticator_id, "credential": c},
+                )
+                restored += 1
+            except Exception:
+                continue
+        return restored
+
+    async def webauthn_disable(self) -> dict[str, Any]:
+        async with self._lock:
+            if not self._webauthn_authenticator_id:
+                return {"ok": True, "note": "already disabled"}
+            session = await self._webauthn_cdp()
+            try:
+                await session.send(
+                    "WebAuthn.removeVirtualAuthenticator",
+                    {"authenticatorId": self._webauthn_authenticator_id},
+                )
+            except Exception:
+                pass
+            self._webauthn_authenticator_id = None
+            return {"ok": True}
 
 
 browser_service = BrowserService()
