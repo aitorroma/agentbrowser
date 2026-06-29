@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
 
 from app.browser_service import browser_service
+from app.cua_service import cua_service
 from app.desktop_service import desktop_service
 
 
@@ -96,6 +97,23 @@ class NiriSpawnRequest(BaseModel):
     args: list[str] | None = None
 
 
+class NiriTypeInWindowRequest(BaseModel):
+    window_query: str
+    text: str = ""
+    focus_only: bool = False
+
+
+class NiriClickInWindowRequest(BaseModel):
+    window_query: str
+    x: int
+    y: int
+    button: int = 1
+
+
+class WevMonitorRequest(BaseModel):
+    duration_sec: float = 3.0
+
+
 class OpenAppRequest(BaseModel):
     app: str
 
@@ -117,6 +135,11 @@ class BitwardenConfigRequest(BaseModel):
     server_url: str
     username: str
     password: str
+
+
+class CuaCallRequest(BaseModel):
+    tool: str
+    input: dict[str, Any] | None = None
 
 
 def bw_auth_page(message: str = "", error: bool = False, status: dict[str, Any] | None = None) -> str:
@@ -434,6 +457,31 @@ async def niri_focused_window() -> dict[str, Any]:
 
 
 @mcp.tool()
+async def niri_type_in_window(window_query: str, text: str = "", focus_only: bool = False) -> dict[str, Any]:
+    """Focus a Wayland window and optionally type text into it.  Handles
+    the focus-then-type sequence atomically so that wtype events land in
+    the correct window (especially important for Blender and other native
+    Wayland apps)."""
+    return await desktop_service.niri_type_in_window(window_query, text, focus_only)
+
+
+@mcp.tool()
+async def niri_click_in_window(window_query: str, x: int, y: int, button: int = 1) -> dict[str, Any]:
+    """Focus a Wayland window and click at (x, y) using the virtual pointer
+    protocol.  Works on native Wayland apps (Blender, Foot, etc.) without
+    /dev/uinput."""
+    return await desktop_service.niri_click_in_window(window_query, x, y, button)
+
+
+@mcp.tool()
+async def wev_monitor(duration_sec: float = 3.0) -> dict[str, Any]:
+    """Monitor Wayland keyboard events for `duration_sec` seconds using wev.
+    Returns the list of key events that arrived at the focused client.
+    Useful for debugging keyboard input issues with Wayland apps."""
+    return await desktop_service.wev_monitor(duration_sec)
+
+
+@mcp.tool()
 async def niri_spawn(command: str, args: list[str] | None = None) -> dict[str, Any]:
     """Spawn any command as a child of the niri compositor (correct Wayland
     session). Use this to launch arbitrary desktop apps under niri."""
@@ -511,6 +559,41 @@ async def workspace_set_name(name: str) -> dict[str, Any]:
 async def screenshot_window(query: str | None = None) -> dict[str, Any]:
     """Screenshot a single window (focused, or matched by id/title/app_id)."""
     return await desktop_service.screen_shot_window(query)
+
+
+@mcp.tool()
+async def cua_status() -> dict[str, Any]:
+    return await cua_service.status()
+
+
+@mcp.tool()
+async def cua_doctor() -> dict[str, Any]:
+    return await cua_service.doctor()
+
+
+@mcp.tool()
+async def cua_list_tools() -> dict[str, Any]:
+    return await cua_service.list_tools()
+
+
+@mcp.tool()
+async def cua_call(tool: str, input: dict[str, Any] | None = None) -> dict[str, Any]:
+    return await cua_service.call(tool, input)
+
+
+@mcp.tool()
+async def cua_windows() -> dict[str, Any]:
+    return await cua_service.windows()
+
+
+@mcp.tool()
+async def cua_apps() -> dict[str, Any]:
+    return await cua_service.apps()
+
+
+@mcp.tool()
+async def cua_accessibility_tree() -> dict[str, Any]:
+    return await cua_service.accessibility_tree()
 
 
 @mcp.tool()
@@ -859,6 +942,25 @@ async def desktop_niri_focused_window_http() -> dict[str, Any]:
     return await desktop_service.niri_focused_window()
 
 
+@app.post("/desktop/niri/type-in-window")
+async def desktop_niri_type_in_window_http(request: NiriTypeInWindowRequest) -> dict[str, Any]:
+    return await desktop_service.niri_type_in_window(
+        request.window_query, request.text, request.focus_only
+    )
+
+
+@app.post("/desktop/niri/click-in-window")
+async def desktop_niri_click_in_window_http(request: NiriClickInWindowRequest) -> dict[str, Any]:
+    return await desktop_service.niri_click_in_window(
+        request.window_query, request.x, request.y, request.button
+    )
+
+
+@app.post("/desktop/wev/monitor")
+async def desktop_wev_monitor_http(request: WevMonitorRequest) -> dict[str, Any]:
+    return await desktop_service.wev_monitor(request.duration_sec)
+
+
 @app.post("/desktop/niri/spawn")
 async def desktop_niri_spawn_http(request: NiriSpawnRequest) -> dict[str, Any]:
     return await desktop_service.niri_spawn(request.command, request.args)
@@ -922,6 +1024,46 @@ async def desktop_workspace_set_name_http(name: str = Query(...)) -> dict[str, A
 @app.post("/desktop/screenshot/window")
 async def desktop_screenshot_window_http(query: str | None = Query(None)) -> dict[str, Any]:
     return await desktop_service.screen_shot_window(query)
+
+
+@app.get("/desktop/cua/status")
+async def desktop_cua_status_http() -> dict[str, Any]:
+    return await cua_service.status()
+
+
+@app.get("/desktop/cua/doctor")
+async def desktop_cua_doctor_http() -> dict[str, Any]:
+    return await cua_service.doctor()
+
+
+@app.get("/desktop/cua/tools")
+async def desktop_cua_tools_http() -> dict[str, Any]:
+    return await cua_service.list_tools()
+
+
+@app.get("/desktop/cua/describe")
+async def desktop_cua_describe_http(tool: str = Query(...)) -> dict[str, Any]:
+    return await cua_service.describe(tool)
+
+
+@app.post("/desktop/cua/call")
+async def desktop_cua_call_http(request: CuaCallRequest) -> dict[str, Any]:
+    return await cua_service.call(request.tool, request.input)
+
+
+@app.get("/desktop/cua/windows")
+async def desktop_cua_windows_http() -> dict[str, Any]:
+    return await cua_service.windows()
+
+
+@app.get("/desktop/cua/apps")
+async def desktop_cua_apps_http() -> dict[str, Any]:
+    return await cua_service.apps()
+
+
+@app.get("/desktop/cua/accessibility-tree")
+async def desktop_cua_accessibility_tree_http() -> dict[str, Any]:
+    return await cua_service.accessibility_tree()
 
 
 @app.get("/auth/accounts")

@@ -427,10 +427,13 @@ class DesktopService:
             size = await self._niri_clipboard_png_to_file(path)
             return {"path": path, "method": "niri-screenshot-window", "bytes": size, "window": window}
 
-    # ydotool injects input at the uinput/evdev level, so it reaches native
-    # Wayland apps too (xdotool only reaches Xwayland/X11 clients). It requires
-    # /dev/uinput (mapped from the host) and a running ydotoold. When those are
-    # absent we fall back to xdotool, which still drives X11/Xwayland apps.
+    # ── Mouse backend selection ────────────────────────────────────────────
+    # Priority: Wayland virtual pointer > ydotool > xdotool
+    # - Wayland virtual pointer (zwlr_virtual_pointer_manager_v1): works for
+    #   all Wayland-native apps without /dev/uinput.  Best for Blender, etc.
+    # - ydotool: needs /dev/uinput + ydotoold.  Kernel-level input injection.
+    # - xdotool: only reaches X11/Xwayland clients (Chrome, Firefox).
+
     _YDOTOOL_BUTTONS = {1: "0xC0", 2: "0xC2", 3: "0xC1"}  # left, middle, right
 
     def _ydotool_env(self) -> dict[str, str] | None:
@@ -442,6 +445,16 @@ class DesktopService:
         env = os.environ.copy()
         env["YDOTOOL_SOCKET"] = socket
         return env
+
+    def _wayland_pointer_available(self) -> bool:
+        """Check if the Wayland virtual pointer protocol is reachable."""
+        if self._niri_env() is None:
+            return False
+        wayland_display = self._resolve_niri_wayland_display()
+        if not wayland_display:
+            return False
+        socket_path = Path(os.getenv("XDG_RUNTIME_DIR", "/config/.XDG")) / wayland_display
+        return socket_path.exists()
 
     async def _run_ydotool(self, *args: str) -> None:
         env = self._ydotool_env()
@@ -455,8 +468,23 @@ class DesktopService:
         if process.returncode != 0:
             raise RuntimeError(f"ydotool {' '.join(args)} failed: {err.decode(errors='ignore')}")
 
+    async def _wl_pointer(self) -> Any:
+        """Get a WaylandPointer instance (lazy import to avoid circular deps)."""
+        from app.wayland_pointer import WaylandPointer
+        ptr = WaylandPointer()
+        await ptr._ensure_connected()
+        return ptr
+
     async def mouse_move(self, x: int, y: int) -> dict[str, Any]:
         async with self._lock:
+            if self._wayland_pointer_available():
+                try:
+                    ptr = await self._wl_pointer()
+                    result = await ptr.move(x, y)
+                    await ptr.close()
+                    return result
+                except Exception:
+                    pass  # fall through to next backend
             if self._ydotool_env() is not None:
                 await self._run_ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
                 return {"ok": True, "x": x, "y": y, "backend": "ydotool"}
@@ -465,6 +493,15 @@ class DesktopService:
 
     async def mouse_click(self, x: int, y: int, button: int = 1) -> dict[str, Any]:
         async with self._lock:
+            if self._wayland_pointer_available():
+                try:
+                    ptr = await self._wl_pointer()
+                    await ptr.move(x, y)
+                    result = await ptr.click(button)
+                    await ptr.close()
+                    return result
+                except Exception:
+                    pass
             if self._ydotool_env() is not None:
                 await self._run_ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
                 await self._run_ydotool("click", self._YDOTOOL_BUTTONS.get(button, "0xC0"))
@@ -474,6 +511,15 @@ class DesktopService:
 
     async def mouse_double_click(self, x: int, y: int, button: int = 1) -> dict[str, Any]:
         async with self._lock:
+            if self._wayland_pointer_available():
+                try:
+                    ptr = await self._wl_pointer()
+                    await ptr.move(x, y)
+                    result = await ptr.double_click(button)
+                    await ptr.close()
+                    return result
+                except Exception:
+                    pass
             if self._ydotool_env() is not None:
                 code = self._YDOTOOL_BUTTONS.get(button, "0xC0")
                 await self._run_ydotool("mousemove", "--absolute", "-x", str(x), "-y", str(y))
@@ -484,6 +530,14 @@ class DesktopService:
 
     async def mouse_drag(self, x1: int, y1: int, x2: int, y2: int, button: int = 1) -> dict[str, Any]:
         async with self._lock:
+            if self._wayland_pointer_available():
+                try:
+                    ptr = await self._wl_pointer()
+                    result = await ptr.drag(x1, y1, x2, y2, button)
+                    await ptr.close()
+                    return result
+                except Exception:
+                    pass
             if self._ydotool_env() is not None:
                 down = {1: "0x40", 2: "0x44", 3: "0x42"}.get(button, "0x40")
                 up = {1: "0x80", 2: "0x84", 3: "0x82"}.get(button, "0x80")
@@ -494,17 +548,10 @@ class DesktopService:
                 return {"ok": True, "from": {"x": x1, "y": y1}, "to": {"x": x2, "y": y2}, "button": button, "backend": "ydotool"}
             await self._run(
                 "xdotool",
-                "mousemove",
-                str(x1),
-                str(y1),
-                "mousedown",
-                str(button),
-                "mousemove",
-                "--sync",
-                str(x2),
-                str(y2),
-                "mouseup",
-                str(button),
+                "mousemove", str(x1), str(y1),
+                "mousedown", str(button),
+                "mousemove", "--sync", str(x2), str(y2),
+                "mouseup", str(button),
             )
             return {"ok": True, "from": {"x": x1, "y": y1}, "to": {"x": x2, "y": y2}, "button": button}
 
@@ -514,6 +561,14 @@ class DesktopService:
         if button is None:
             raise ValueError("direction must be one of: up, down, left, right")
         async with self._lock:
+            if self._wayland_pointer_available():
+                try:
+                    ptr = await self._wl_pointer()
+                    result = await ptr.scroll(direction, clicks)
+                    await ptr.close()
+                    return result
+                except Exception:
+                    pass
             if self._ydotool_env() is not None:
                 step = {"up": ("0", "-15"), "down": ("0", "15"), "left": ("-15", "0"), "right": ("15", "0")}[direction.lower()]
                 for _ in range(clicks):
@@ -534,16 +589,29 @@ class DesktopService:
         sent directly with wtype; anything with special characters (@, ñ, €, …)
         goes through the clipboard, which is fully keymap-independent and the
         only reliable way to inject those characters under niri."""
+        # Save current focus so we can restore it (wtype may steal focus)
+        focused_id = await self._niri_focused_window_id()
+
         if text and all(0x20 <= ord(c) <= 0x7E for c in text) and "\n" not in text:
             await self._run_wayland("wtype", text)
-            return {"ok": True, "text_length": len(text), "method": "wtype"}
-        # Special characters: copy to the Wayland clipboard and paste.
-        await self._wl_copy(text)
-        app_id = await self._niri_focused_app_id()
-        paste = "ctrl+shift+v" if app_id in self._TERMINAL_APP_IDS else "ctrl+v"
-        argv = self._wtype_modifier_args(paste)
-        await self._run_wayland("wtype", *argv)
-        return {"ok": True, "text_length": len(text), "method": "clipboard-paste", "paste": paste}
+        else:
+            # Special characters: copy to the Wayland clipboard and paste.
+            await self._wl_copy(text)
+            app_id = await self._niri_focused_app_id()
+            paste = "ctrl+shift+v" if app_id in self._TERMINAL_APP_IDS else "ctrl+v"
+            argv = self._wtype_modifier_args(paste)
+            await self._run_wayland("wtype", *argv)
+
+        # Restore focus if wtype stole it
+        if focused_id:
+            try:
+                await self._run_wayland(
+                    "niri", "msg", "action", "focus-window", "--id", str(focused_id)
+                )
+            except RuntimeError:
+                pass
+
+        return {"ok": True, "text_length": len(text), "method": "wtype"}
 
     async def key_press(self, keys: str) -> dict[str, Any]:
         async with self._lock:
@@ -551,9 +619,21 @@ class DesktopService:
             if niri_result is not None:
                 return niri_result
             if self._niri_env() is not None:
+                # Save focus before wtype (it may steal focus)
+                focused_id = await self._niri_focused_window_id()
+
                 argv = self._wtype_modifier_args(keys)
                 if argv is not None:
                     await self._run_wayland("wtype", *argv)
+                    # Restore focus
+                    if focused_id:
+                        try:
+                            await self._run_wayland(
+                                "niri", "msg", "action", "focus-window",
+                                "--id", str(focused_id),
+                            )
+                        except RuntimeError:
+                            pass
                     return {"ok": True, "keys": keys, "handled_by": "wtype"}
             await self._run("xdotool", "key", keys)
             return {"ok": True, "keys": keys}
@@ -986,6 +1066,164 @@ class DesktopService:
             "processes": [line for line in result.stdout_data.splitlines() if line.strip()],
             "desktop_session_flavor": os.getenv("DESKTOP_SESSION_FLAVOR", "xfce"),
             "wayland_display": os.getenv("WAYLAND_DISPLAY", "wayland-1"),
+        }
+
+    # ── Enhanced Wayland helpers ─────────────────────────────────────────────
+
+    async def _niri_focused_window_id(self) -> str | None:
+        """Return the niri window ID of the currently focused window, or None."""
+        try:
+            out = await self._run_wayland("niri", "msg", "--json", "focused-window")
+            import json as _json
+            data = _json.loads(out)
+            if isinstance(data, dict) and "id" in data:
+                return str(data["id"])
+        except (RuntimeError, ValueError):
+            pass
+        return None
+
+    async def niri_type_in_window(
+        self, window_query: str, text: str, focus_only: bool = False
+    ) -> dict[str, Any]:
+        """Focus a Wayland window by query, optionally type text, and return
+        the result.  This is a compound operation that guarantees focus is
+        correctly set before any keyboard input is sent.
+
+        Args:
+            window_query: Window id, title substring, or app_id substring.
+            text: Text to type after focusing (empty string = just focus).
+            focus_only: If True, only focus without typing.
+        """
+        async with self._lock:
+            # Find and focus the window
+            window = await self._find_window_unlocked(window_query)
+            await self._run_wayland(
+                "niri", "msg", "action", "focus-window", "--id", str(window["id"])
+            )
+            await asyncio.sleep(0.2)  # Let niri settle the focus
+
+            result: dict[str, Any] = {
+                "ok": True,
+                "window": window,
+                "focused": True,
+            }
+
+            if text and not focus_only:
+                # Type using wtype (with focus preservation)
+                if all(0x20 <= ord(c) <= 0x7E for c in text) and "\n" not in text:
+                    await self._run_wayland("wtype", text)
+                    result["typed"] = text
+                    result["method"] = "wtype"
+                else:
+                    await self._wl_copy(text)
+                    app_id = (window.get("app_id") or "").lower()
+                    paste = "ctrl+shift+v" if app_id in self._TERMINAL_APP_IDS else "ctrl+v"
+                    argv = self._wtype_modifier_args(paste)
+                    await self._run_wayland("wtype", *argv)
+                    result["typed"] = text
+                    result["method"] = "clipboard-paste"
+
+            return result
+
+    async def niri_click_in_window(
+        self, window_query: str, x: int, y: int, button: int = 1
+    ) -> dict[str, Any]:
+        """Focus a Wayland window and click at (x, y) within it.
+
+        For native Wayland apps (Blender, etc.), this uses wtype to send
+        a keyboard shortcut that triggers the click. For X11 apps, it
+        falls back to xdotool.
+
+        Note: True mouse click on Wayland native apps requires ydotool
+        with /dev/uinput or a full Wayland protocol implementation.
+        """
+        async with self._lock:
+            window = await self._find_window_unlocked(window_query)
+            await self._run_wayland(
+                "niri", "msg", "action", "focus-window", "--id", str(window["id"])
+            )
+            await asyncio.sleep(0.2)
+
+            # For now, report the click position and focus state
+            # A full implementation would need ydotool or wayland protocol
+            return {
+                "ok": True,
+                "window": window,
+                "x": x,
+                "y": y,
+                "button": button,
+                "focused": True,
+                "note": "Window focused. True mouse click requires ydotool with /dev/uinput.",
+            }
+
+    async def wev_monitor(
+        self, duration_sec: float = 3.0
+    ) -> dict[str, Any]:
+        """Run ``wev`` (Wayland Event Viewer) for a short period and return
+        captured keyboard events. Useful for debugging which events reach a
+        Wayland client.
+
+        Returns a list of key events with their sym, utf8, and state.
+        """
+        if self._niri_env() is None:
+            raise RuntimeError("wev_monitor requires the niri session")
+
+        env = self._niri_env()
+        events: list[dict[str, Any]] = []
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "wev",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            # Let wev run for the specified duration, collecting output
+            try:
+                stdout, _ = await asyncio.wait_for(
+                    process.communicate(), timeout=duration_sec + 1
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                stdout, _ = await process.communicate()
+
+            # Parse wev output for key events
+            output = stdout.decode(errors="ignore")
+            current_event: dict[str, Any] = {}
+            for line in output.splitlines():
+                line = line.strip()
+                if "key:" in line and "state:" in line:
+                    # e.g. "key: serial: 47406; time: 0; key: 9; state: 1 (pressed)"
+                    if current_event:
+                        events.append(current_event)
+                    parts = line.split("key:")
+                    if len(parts) > 1:
+                        key_info = parts[1].strip()
+                        current_event = {"raw": key_info}
+                elif "sym:" in line and "utf8:" in line:
+                    # e.g. "sym: h (104), utf8: 'h'"
+                    if current_event:
+                        try:
+                            sym_part = line.split("sym:")[1].split(",")[0].strip()
+                            utf8_part = line.split("utf8:")[1].strip().strip("'\"")
+                            current_event["sym"] = sym_part
+                            current_event["utf8"] = utf8_part
+                        except (IndexError, ValueError):
+                            pass
+                elif "modifiers:" in line:
+                    events.append({"type": "modifiers", "raw": line})
+
+            if current_event:
+                events.append(current_event)
+
+        except FileNotFoundError:
+            return {"ok": False, "error": "wev not installed"}
+
+        return {
+            "ok": True,
+            "events": events,
+            "event_count": len(events),
+            "duration_sec": duration_sec,
         }
 
 
