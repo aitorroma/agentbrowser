@@ -1,0 +1,198 @@
+:root,
+.theme-dark,
+.theme-light {
+  --sidebar-bg: #11161c !important;
+  --sidebar-text: #d7e2d4 !important;
+  --sidebar-header-color: #7dff8c !important;
+  --sidebar-border: #1d2a22 !important;
+  --sidebar-shadow: rgba(0, 0, 0, 0.6) !important;
+  --section-bg: #18211c !important;
+  --item-border: #294233 !important;
+  --input-bg: #121a16 !important;
+  --input-text: #d7e2d4 !important;
+  --input-border: #35503f !important;
+  --button-bg: #7dff8c !important;
+  --button-text: #08110a !important;
+  --button-hover-bg: #5fe272 !important;
+  --pre-bg: #121a16 !important;
+  --pre-text: #d7e2d4 !important;
+  --tooltip-bg: #18211c !important;
+  --tooltip-text: #d7e2d4 !important;
+  --tooltip-border: #35503f !important;
+  --slider-track-color: #223128 !important;
+  --slider-thumb-color: #7dff8c !important;
+  --notification-progress-bg: #223128 !important;
+  --notification-progress-fill: #7dff8c !important;
+  --notification-success-color: #7dff8c !important;
+  --notification-error-color: #ff6b6b !important;
+  --notification-warn-color: #ffd166 !important;
+}
+
+body {
+  background:
+    radial-gradient(circle at top, rgba(46, 125, 50, 0.12), transparent 35%),
+    linear-gradient(180deg, #0d1117 0%, #11161c 100%) !important;
+}
+
+.sidebar {
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(125, 255, 140, 0.12);
+}
+
+/* ---- Header layout ---- */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 8px 12px 8px 4px;
+  border-bottom: 1px solid rgba(125, 255, 140, 0.1);
+}
+
+/* Brand (logo + title) clickable area pinned to the left, controls to the right */
+.sidebar-header > a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* Hide the original Selkies SVG logo; we render our own via the title's ::before */
+.sidebar-header > a > svg,
+.sidebar-header [aria-label*="Selkies"] {
+  display: none !important;
+}
+
+/* The empty anchor that used to hold the SVG: collapse it so it adds no gap */
+.sidebar-header > a:first-child {
+  width: 0;
+  overflow: hidden;
+}
+
+.sidebar h2 {
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+  margin: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* AgentBrowser logo */
+.sidebar h2::before {
+  content: "";
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: inline-block;
+  background-image: url("./agentbrowser-logo.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 0 6px rgba(125, 255, 140, 0.28));
+}
+
+/* AgentBrowser wordmark */
+.sidebar h2::after {
+  content: "AgentBrowser";
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #7dff8c;
+  text-shadow: 0 0 10px rgba(125, 255, 140, 0.16);
+  white-space: nowrap;
+}
+
+/* ---- Header controls (theme / fullscreen / hide) ---- */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Theme switching is fixed to the AgentBrowser dark theme — hide the toggle.
+   Gaming mode (relative-mouse pointer lock) is irrelevant for an agent browser. */
+.header-controls .theme-toggle,
+.header-controls .gaming-mode-button {
+  display: none !important;
+}
+
+.header-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #7dff8c;
+  background: rgba(125, 255, 140, 0.06);
+  border: 1px solid rgba(125, 255, 140, 0.16);
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.header-action-button:hover {
+  background: rgba(125, 255, 140, 0.14);
+  box-shadow: 0 0 0 1px rgba(125, 255, 140, 0.28) inset;
+}
+
+.header-action-button:active {
+  transform: scale(0.94);
+}
+
+.header-action-button.active {
+  box-shadow: 0 0 16px rgba(125, 255, 140, 0.2);
+}
+
+.sidebar-section-header:hover,
+.action-button:hover,
+.toggle-button:hover,
+.copy-button:hover,
+.resolution-button:hover,
+.app-detail-back-button:hover {
+  box-shadow: 0 0 0 1px rgba(125, 255, 140, 0.18) inset;
+}
+
+.action-button.active,
+.toggle-button.active,
+.mobile-key-button.active {
+  box-shadow: 0 0 16px rgba(125, 255, 140, 0.2);
+}
+
+.sidebar-section,
+.files-modal,
+.apps-modal,
+.notification-item {
+  border-color: #294233 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+
+.toggle-indicator {
+  background: linear-gradient(180deg, #34d058 0%, #7dff8c 100%) !important;
+  box-shadow: 0 0 12px rgba(125, 255, 140, 0.32);
+}
+
+.sharing-link,
+.copy-button:hover,
+.files-modal-close:hover,
+.apps-modal-close:hover {
+  color: #7dff8c !important;
+}
+
+.theme-toggle {
+  background-color: #223128 !important;
+}
+
+.theme-toggle .moon-icon,
+.theme-toggle .sun-icon {
+  color: #7dff8c !important;
+}
+
+.app-card {
+  background: linear-gradient(180deg, rgba(26, 36, 31, 0.96) 0%, rgba(18, 26, 22, 0.96) 100%);
+}
+
+.app-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(125, 255, 140, 0.18);
+}

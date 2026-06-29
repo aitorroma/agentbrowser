@@ -16,6 +16,22 @@ NIRI_PRIMARY_MODE="${NIRI_PRIMARY_MODE:-${PRIMARY_COMPOSITOR:-}}"
 mkdir -p "${HOME}/.config/niri"
 
 if pgrep -u "$(id -u)" -x niri >/dev/null 2>&1; then
+  # A niri is already running (e.g. a racing second invocation, or a leftover).
+  # We must still publish the Wayland/X11 display files — startwm_wayland.sh and
+  # noctalia-launcher.sh block on them, and exiting bare strands noctalia on a
+  # bogus fallback display. Recover the sockets from the running niri's IPC
+  # socket name (niri.<wayland-display>.<pid>.sock) and/or its log.
+  if [ ! -s "${NIRI_WAYLAND_FILE}" ]; then
+    running_wayland="$(sed -n 's/.*listening on Wayland socket: //p' /tmp/niri.log 2>/dev/null | tail -n1)"
+    if [ -z "${running_wayland}" ]; then
+      running_wayland="$(ls "${XDG_RUNTIME_DIR}"/niri.*.sock 2>/dev/null | tail -n1 | sed -n 's#.*/niri\.\([^.]*\)\..*#\1#p')"
+    fi
+    if [ -n "${running_wayland}" ] && [ -S "${XDG_RUNTIME_DIR}/${running_wayland}" ]; then
+      printf '%s\n' "${running_wayland}" >"${NIRI_WAYLAND_FILE}"
+      running_x11="$(sed -n 's/.*listening on X11 socket: //p' /tmp/niri.log 2>/dev/null | tail -n1)"
+      [ -n "${running_x11}" ] && printf '%s\n' "${running_x11}" >"${NIRI_X11_FILE}"
+    fi
+  fi
   exit 0
 fi
 

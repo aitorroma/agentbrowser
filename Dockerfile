@@ -119,6 +119,7 @@ COPY assets/niri/config.kdl /opt/appliance/niri/config.kdl
 COPY root/defaults/autostart /defaults/autostart
 COPY root/defaults/autostart /defaults/autostart_wayland
 COPY root/defaults/noctalia-state /defaults/noctalia-state
+COPY root/defaults/selkies-web /defaults/selkies-web
 COPY root/defaults/wallpapers /defaults/wallpapers
 COPY root/defaults/nginx-default.conf /defaults/default.conf
 COPY root/defaults/browser-launcher.sh /opt/appliance/browser-launcher.sh

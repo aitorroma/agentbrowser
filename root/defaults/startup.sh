@@ -19,6 +19,51 @@ mkdir -p "$BROWSER_PROFILE_DIR" "$OUTPUT_DIR" /tmp/runtime-abc
 chmod 700 "$XDG_RUNTIME_DIR" /tmp/runtime-abc 2>/dev/null || true
 mkdir -p /config/.local/state/noctalia
 mkdir -p /config/wallpapers
+mkdir -p /config/selkies-web
+
+apply_selkies_branding() {
+  local source_root="/usr/share/selkies/web"
+  local source_www_root="/usr/share/selkies/www"
+  local web_root="/config/selkies-web"
+  local branding_root="/defaults/selkies-web"
+  local index_html="${web_root}/index.html"
+
+  [ -d "${branding_root}" ] || return 0
+  [ -d "${source_root}" ] || return 0
+
+  # A previous run may have populated web_root with files owned by root while
+  # the current run is abc (or vice versa); without write access cp fails. Try
+  # to normalise ownership when we have the privilege, but never let any of this
+  # abort startup — branding is cosmetic and must not block the compositor.
+  chown -R abc:abc "${web_root}" >/dev/null 2>&1 || true
+
+  cp -a "${source_root}/." "${web_root}/" 2>/dev/null || \
+    cp -rf "${source_root}/." "${web_root}/" 2>/dev/null || true
+
+  cp -f "${branding_root}/agentbrowser.css" "${web_root}/agentbrowser.css" 2>/dev/null || true
+  cp -f "${branding_root}/agentbrowser.js" "${web_root}/agentbrowser.js" 2>/dev/null || true
+  cp -f "${branding_root}/agentbrowser-logo.png" "${web_root}/agentbrowser-logo.png" 2>/dev/null || true
+  cp -f "${branding_root}/agentbrowser-start-icon.png" "${web_root}/agentbrowser-start-icon.png" 2>/dev/null || true
+  if [ -d "${source_www_root}" ]; then
+    cp -f "${branding_root}/agentbrowser-start-icon.png" "${source_www_root}/icon.png" 2>/dev/null || true
+  fi
+
+  python <<'PY' 2>/dev/null || true
+from pathlib import Path
+
+index = Path("/config/selkies-web/index.html")
+html = index.read_text()
+css = '<link rel="stylesheet" href="./agentbrowser.css">'
+js = '<script defer src="./agentbrowser.js"></script>'
+if css not in html:
+    html = html.replace("</head>", css + "</head>")
+if js not in html:
+    html = html.replace("</head>", js + "</head>")
+index.write_text(html)
+PY
+
+  chown -R abc:abc "${web_root}" >/dev/null 2>&1 || true
+}
 
 if [ -d /defaults/noctalia-state ]; then
   cp -an /defaults/noctalia-state/. /config/.local/state/noctalia/
@@ -29,6 +74,10 @@ if [ -d /defaults/wallpapers ]; then
   cp -an /defaults/wallpapers/. /config/wallpapers/
   chown -R abc:abc /config/wallpapers >/dev/null 2>&1 || true
 fi
+
+# Branding must never abort startup (set -e) — the compositor launch below
+# depends on reaching the end of this script.
+apply_selkies_branding || true
 
 # ydotoold provides uinput-level input injection that reaches native Wayland
 # apps (xdotool only reaches Xwayland). Needs /dev/uinput mapped from the host
