@@ -1,0 +1,23 @@
+# ~/.bashrc — BrowserAgent shell
+case $- in *i*) ;; *) return;; esac
+
+# The baseimage exports its own python venv (/lsiopy) which leaks into the
+# terminal; clearing it for interactive shells removes the agnoster "[v] <ver>"
+# segment from the prompt.
+unset VIRTUAL_ENV
+
+export OSH="/config/.oh-my-bash"
+OSH_THEME="agnoster"
+DISABLE_AUTO_UPDATE="true"
+completions=(git ssh)
+plugins=(git)
+source "$OSH/oh-my-bash.sh"
+
+# Always pin the window title to "BrowserAgent" (runs last in PROMPT_COMMAND so
+# it wins over the theme's own title escape).
+__set_win_title() { printf "\033]2;BrowserAgent\007"; }
+PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }__set_win_title"
+
+export EDITOR=nano
+alias ll="ls -lah --color=auto"
+alias ls="ls --color=auto"

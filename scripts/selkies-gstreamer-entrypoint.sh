@@ -48,6 +48,14 @@ fi
 # Wait for X server to start
 echo 'Waiting for X Socket' && until [ -S "/tmp/.X11-unix/X${DISPLAY#*:}" ]; do sleep 0.5; done && echo 'X Server is ready'
 
+if [ "${DESKTOP_SESSION_FLAVOR:-xfce}" = "niri-nested" ] || [ "${DESKTOP_SESSION_FLAVOR:-xfce}" = "noctalia-niri" ]; then
+  /opt/appliance/niri-launcher.sh &
+fi
+
+if [ "${DESKTOP_SESSION_FLAVOR:-xfce}" = "noctalia-niri" ]; then
+  /opt/appliance/noctalia-launcher.sh &
+fi
+
 # Configure NGINX
 if [ "$(echo ${SELKIES_ENABLE_BASIC_AUTH} | tr '[:upper:]' '[:lower:]')" != "false" ]; then htpasswd -bcm "${XDG_RUNTIME_DIR}/.htpasswd" "${SELKIES_BASIC_AUTH_USER:-${USER}}" "${SELKIES_BASIC_AUTH_PASSWORD:-${PASSWD}}"; fi
 echo "# Selkies-GStreamer NGINX Configuration

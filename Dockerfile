@@ -1,92 +1,144 @@
-FROM ghcr.io/selkies-project/selkies-gstreamer/gst-py-example:main-ubuntu24.04
+FROM ghcr.io/linuxserver/baseimage-selkies:arch
 
-USER 0
-ARG DEBIAN_FRONTEND=noninteractive
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
-    PYTHONUNBUFFERED=1 \
-    PIP_BREAK_SYSTEM_PACKAGES=1
+SHELL ["/bin/bash", "-lc"]
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    python3-venv \
-    python3-dev \
-    build-essential \
-    ca-certificates \
-    curl \
-    locales \
-    nodejs \
-    npm \
-    tzdata \
-    unzip \
-    dbus-x11 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libatspi2.0-0 \
-    libasound2t64 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libu2f-udev \
-    libvulkan1 \
-    libwayland-client0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxkbcommon0 \
-    libxrandr2 \
-    fonts-liberation \
-    fonts-liberation2 \
-    fonts-noto-color-emoji \
-    fonts-freefont-ttf \
-    fonts-dejavu-core \
-    fonts-ubuntu \
-    fonts-roboto \
-    fonts-font-awesome \
-    fonts-terminus \
-    fonts-powerline \
-    fonts-open-sans \
-    fonts-mononoki \
-    fonts-lato \
-    scrot \
-    socat \
-    wmctrl \
-    xclip \
-    xdotool \
-    xdg-utils \
-    && sed -i 's/^# *es_ES.UTF-8 UTF-8/es_ES.UTF-8 UTF-8/' /etc/locale.gen \
-    && locale-gen es_ES.UTF-8 \
-    && update-locale LANG=es_ES.UTF-8 LANGUAGE=es_ES:es LC_ALL=es_ES.UTF-8 \
-    && ln -snf /usr/share/zoneinfo/Europe/Madrid /etc/localtime \
-    && echo Europe/Madrid >/etc/timezone \
+ENV PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+
+RUN pacman -Syu --noconfirm \
+    && pacman -S --noconfirm --needed --overwrite '*' \
+        at-spi2-core \
+        at-spi2-atk \
+        atk \
+        base-devel \
+        cairo \
+        chromium \
+        cups \
+        curl \
+        dbus \
+        dolphin \
+        firefox \
+        foot \
+        fontconfig \
+        fuzzel \
+        git \
+        glib2 \
+        gtk3 \
+        freetype2 \
+        jemalloc \
+        libdrm \
+        libglvnd \
+        libpipewire \
+        libqalculate \
+        librsvg \
+        libwebp \
+        libxcomposite \
+        libxdamage \
+        libxfixes \
+        libxkbcommon \
+        libxrandr \
+        meson \
+        nodejs \
+        ninja \
+        noto-fonts \
+        noto-fonts-emoji \
+        nspr \
+        nss \
+        npm \
+        niri \
+        pango \
+        pam \
+        pipewire \
+        polkit \
+        pkgconf \
+        python \
+        python-gobject \
+        python-pip \
+        python-setuptools \
+        python-wheel \
+        python-atspi \
+        scrot \
+        sdbus-cpp \
+        socat \
+        thunar \
+        ttf-dejavu \
+        ttf-droid \
+        ttf-font-awesome \
+        ttf-lato \
+        ttf-liberation \
+        ttf-mononoki-nerd \
+        ttf-opensans \
+        ttf-roboto \
+        ttf-ubuntu-font-family \
+        wayland \
+        wayland-protocols \
+        wl-clipboard \
+        wmctrl \
+        wtype \
+        ydotool \
+        terminus-font \
+        ttf-nerd-fonts-symbols-mono \
+        vulkan-icd-loader \
+        xclip \
+        xwayland-satellite \
+        xdg-utils \
+        xdotool \
+    && printf '%s\n' 'es_ES.UTF-8 UTF-8' 'en_US.UTF-8 UTF-8' >> /etc/locale.gen \
+    && locale-gen \
+    && echo 'LANG=es_ES.UTF-8' > /etc/locale.conf \
     && npm install -g @bitwarden/cli \
-    && rm -rf /var/lib/apt/lists/*
+    && useradd -m -U builduser \
+    && git clone https://aur.archlinux.org/noctalia-git.git /tmp/noctalia-git \
+    && chown -R builduser:builduser /tmp/noctalia-git \
+    && su builduser -c 'cd /tmp/noctalia-git && makepkg -s --noconfirm --needed' \
+    && pacman -U --noconfirm /tmp/noctalia-git/*.pkg.tar.zst \
+    && git clone https://aur.archlinux.org/google-chrome.git /tmp/google-chrome \
+    && chown -R builduser:builduser /tmp/google-chrome \
+    && su builduser -c 'cd /tmp/google-chrome && makepkg -s --noconfirm --needed' \
+    && pacman -U --noconfirm /tmp/google-chrome/*.pkg.tar.zst \
+    && rm -rf /tmp/noctalia-git /tmp/google-chrome /home/builduser/.cache /home/builduser/.cargo /home/builduser/.local \
+    && pacman -Scc --noconfirm
 
 WORKDIR /opt/appliance
+
 COPY app/requirements.txt /opt/appliance/requirements.txt
-RUN python3 -m venv /opt/appliance/venv \
+RUN python -m venv /opt/appliance/venv \
     && /opt/appliance/venv/bin/pip install --upgrade pip setuptools wheel \
     && /opt/appliance/venv/bin/pip install -r /opt/appliance/requirements.txt \
-    && /opt/appliance/venv/bin/playwright install chromium \
-    && mkdir -p /opt/playwright /data/profile /data/output \
-    && chown -R 1000:1000 /opt/appliance /opt/playwright /data
+    && /opt/appliance/venv/bin/playwright install chromium
 
 COPY app/ /opt/appliance/app/
-COPY scripts/browser-launcher.sh /opt/appliance/browser-launcher.sh
-COPY scripts/browser-supervisor.conf /etc/supervisor/conf.d/browser-appliance.conf
-COPY scripts/nginx-default.conf /etc/nginx/sites-available/default
-COPY scripts/selkies-gstreamer-entrypoint.sh /etc/selkies-gstreamer-entrypoint.sh
-RUN chmod 755 /opt/appliance/browser-launcher.sh \
-    /etc/selkies-gstreamer-entrypoint.sh \
-    && sed -i 's#command=bash -c "until nc -z localhost ${SELKIES_PORT:-8081}; do sleep 0.5; done; /usr/sbin/nginx -g \\"daemon off;\\""#command=/usr/sbin/nginx -g "daemon off;"#' /etc/supervisord.conf \
-    && chown -R 1000:1000 /opt/appliance /etc/supervisor/conf.d/browser-appliance.conf /etc/selkies-gstreamer-entrypoint.sh \
-    && chown 1000:1000 /etc/nginx/sites-available/default
+COPY scripts/niri-launcher.sh /opt/appliance/niri-launcher.sh
+COPY scripts/noctalia-launcher.sh /opt/appliance/noctalia-launcher.sh
+COPY scripts/niri-run-app.sh /opt/appliance/niri-run-app.sh
+COPY scripts/terminal-launcher.sh /opt/appliance/terminal-launcher.sh
+COPY scripts/test_dogtail.py /opt/appliance/scripts/test_dogtail.py
+COPY scripts/thunar_dogtail.py /opt/appliance/scripts/thunar_dogtail.py
+COPY assets/niri/config.kdl /opt/appliance/niri/config.kdl
 
-USER 1000
-WORKDIR /home/ubuntu
+COPY root/defaults/autostart /defaults/autostart
+COPY root/defaults/autostart /defaults/autostart_wayland
+COPY root/defaults/noctalia-state /defaults/noctalia-state
+COPY root/defaults/wallpapers /defaults/wallpapers
+COPY root/defaults/nginx-default.conf /defaults/default.conf
+COPY root/defaults/browser-launcher.sh /opt/appliance/browser-launcher.sh
+COPY root/defaults/startwm_wayland.sh /defaults/startwm_wayland.sh
+COPY root/defaults/startup.sh /defaults/startup.sh
+COPY root/defaults/shell/bashrc /config/.bashrc
+COPY root/defaults/shell/foot.ini /config/.config/foot/foot.ini
+
+RUN git clone --depth=1 https://github.com/ohmybash/oh-my-bash.git /config/.oh-my-bash
+
+RUN chmod 755 \
+    /opt/appliance/browser-launcher.sh \
+    /opt/appliance/niri-launcher.sh \
+    /opt/appliance/noctalia-launcher.sh \
+    /opt/appliance/niri-run-app.sh \
+    /opt/appliance/terminal-launcher.sh \
+    /opt/appliance/scripts/test_dogtail.py \
+    /opt/appliance/scripts/thunar_dogtail.py \
+    /defaults/startwm_wayland.sh \
+    /defaults/startup.sh \
+    && mkdir -p /data/profile /data/output /opt/playwright \
+    && chown -R abc:abc /opt/appliance /data /opt/playwright \
+    && chown -R abc:abc /config

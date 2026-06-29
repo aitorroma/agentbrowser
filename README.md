@@ -1,299 +1,85 @@
-<div align="center">
-
-  <a href="https://t.me/aitorroma">
-    <img src="https://tva1.sinaimg.cn/large/008i3skNgy1gq8sv4q7cqj303k03kweo.jpg" alt="Aitor Roma" />
-  </a>
-
-  <br>
-
-  [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/J3J64AN17)
-
-  <br>
-
-  <a href="https://t.me/aitorroma">
-    <img src="https://img.shields.io/badge/Telegram-informational?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Badge"/>
-  </a>
-</div>
-
 # AgentBrowser
 
-Browser automation appliance with a real headed Chromium running inside Docker, live remote desktop via Selkies/WebRTC, local CDP access for agents, Markdown extraction, and secure Bitwarden-assisted login flows.
+Arch-first browser appliance with a visible desktop, Niri + Noctalia session, Chromium/Chrome automation, local CDP, desktop control APIs, and Bitwarden-assisted logins.
 
-## Demo
+## Stack
 
-![AgentBrowser demo](assets/demo.gif)
+- Arch Linux base via `ghcr.io/linuxserver/baseimage-selkies:arch`
+- Selkies remote desktop
+- Niri as primary compositor
+- Noctalia desktop shell
+- Chromium / Google Chrome inside the container
+- FastAPI + MCP + desktop control
 
-- **GIF preview:** `assets/demo.gif`
-- **Video demo:** [`assets/demo.mp4`](assets/demo.mp4)
-- **Static cover:** [`assets/demo-cover.jpg`](assets/demo-cover.jpg)
+## Main URLs
 
-## Why this project exists
-
-Most browser automation stacks force you to choose between:
-
-- a real visible browser for manual inspection
-- deterministic agent control
-- safe handling of credentials
-- remote access from a server without a local GUI
-
-AgentBrowser combines those pieces into one appliance:
-
-- **real Chromium, not headless-only**
-- **virtual desktop streamed over WebRTC**
-- **local CDP for Playwright/agent control**
-- **HTTP/MCP tools for browser actions**
-- **Bitwarden-backed secure login without exposing secrets to the agent**
-
-## What it includes
-
-- **Selkies** as the desktop streaming base
-- **Chromium headed** over Xvfb/Xfce inside the container
-- **Persistent browser profile** in a Docker volume
-- **CDP exposed only on localhost**
-- **FastAPI service** for automation and support endpoints
-- **Markdown extraction** using Readability-style processing
-- **MCP endpoint** for tool-based browser control
-- **Desktop control service** for full GUI workflows
-- **Secure login flow** that reuses Bitwarden state without returning credentials
-
-## Main capabilities
-
-### 1. Live browser you can actually see
-
-Open the streamed desktop in your browser and watch or interact with Chromium in real time.
-
-### 2. Local agent control through CDP
-
-Attach Playwright or any CDP-compatible client to the running browser without exposing it publicly.
-
-### 3. MCP-compatible automation
-
-Use the local MCP endpoint to drive navigation, clicks, screenshots, evaluation, and other flows.
-
-### 4. Rendered Markdown extraction
-
-Fetch a page and convert its rendered content into cleaner Markdown for downstream agent use.
-
-### 5. Secret-blind login flows
-
-Authenticate to Bitwarden once, then let the service perform site logins without returning usernames, passwords, or TOTP codes to the agent.
-
-## High-level architecture
-
-```text
-Agent / Playwright / MCP client
-            |
-            v
-   127.0.0.1:8787  FastAPI + MCP
-            |
-   +--------+--------+
-   |                 |
-   v                 v
-CDP / browser    desktop tools
-control          + auth helpers
-   |                 |
-   +--------+--------+
-            v
-  Headed Chromium inside Docker
-            |
-            v
-   Selkies + Xvfb/Xfce + WebRTC
-            |
-            v
-     http://localhost:8080
-```
-
-## Ports
-
-| Port | Scope | Purpose |
-|---|---|---|
-| `8080` | host | Selkies live desktop |
-| `8081` | internal | Selkies service port |
-| `127.0.0.1:8787` | local only | FastAPI + Markdown + MCP |
-| `127.0.0.1:9222` | local only | Chromium CDP |
-| `3478` + `65532-65535` | host | TURN/WebRTC support |
-
-## Requirements
-
-- Linux host
-- Docker Engine
-- Docker Compose plugin
-- No local GUI required on the host
+- Live desktop: `http://localhost:18080`
+- HTTPS desktop: `https://localhost:18443`
+- Local API / MCP: `http://127.0.0.1:18787`
+- Local CDP: `http://127.0.0.1:19222/json/version`
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-docker compose up --build
+docker compose up -d --build
 ```
 
-Then open:
+Then:
 
-- **Live desktop:** `http://localhost:8080`
-- **MCP / API:** `http://127.0.0.1:8787`
+1. Edit `.env`
+2. Change at least `SELKIES_BASIC_AUTH_PASSWORD`
+3. Set a strong `BW_STATE_KEY` if you want persistent Bitwarden sessions
+4. Open `http://localhost:18080`
 
-## First-use flow
+## Main capabilities
 
-1. Copy `.env.example` to `.env`
-2. Change the default passwords in `.env`
-3. Start the stack with Docker Compose
-4. Open Selkies at `http://localhost:8080`
-5. Optionally connect Bitwarden at `/auth/bw`
-6. Use CDP, HTTP, or MCP to control the browser
+- Visible browser and desktop streamed over Selkies
+- Full desktop control: windows, keyboard, mouse, screenshots, app launch
+- Niri control endpoints and workspace/window actions
+- Chromium/CDP automation for deterministic browsing
+- Firefox and desktop-app control through the desktop service
+- Bitwarden-backed login flows without exposing secrets to the agent
+- Installed-app discovery and launch
 
-## Core endpoints
+## Important environment defaults
 
-### Live desktop
+- `DESKTOP_SESSION_FLAVOR=noctalia-niri`
+- `PRIMARY_COMPOSITOR=niri`
+- `SELKIES_WEB_PORT=18080`
+- `BROWSER_API_HOST_PORT=18787`
+- `BROWSER_CDP_HOST_PORT=19222`
 
-```text
-http://localhost:8080
-```
+## Security and publishing notes
 
-Use `SELKIES_BASIC_AUTH_USER` and `SELKIES_BASIC_AUTH_PASSWORD` from your `.env`.
+- `.env` is gitignored and must stay local
+- `.env.example` only contains placeholder values and is safe to commit
+- Do not commit real values for:
+  - `SELKIES_BASIC_AUTH_PASSWORD`
+  - `BW_SESSION`
+  - `BW_STATE_KEY`
+  - proxy credentials in `BROWSER_PROXY_SERVER`
+- CDP and API ports are bound to `127.0.0.1` by default in `docker-compose.yml`
+- If you change defaults for a public deployment, review exposed ports before publishing
 
-### CDP discovery
+### Quick pre-push check
 
 ```bash
-curl http://127.0.0.1:9222/json/version
+git diff -- .env
+git grep -nE 'BW_SESSION|BW_STATE_KEY|SELKIES_BASIC_AUTH_PASSWORD|Authorization:|BEGIN [A-Z ]+PRIVATE KEY'
 ```
 
-This stays on localhost so agents on the same machine can connect without exposing CDP to the internet.
+`git diff -- .env` should print nothing because `.env` is ignored.
 
-### Markdown extraction
+## Project layout
 
-```bash
-curl 'http://127.0.0.1:8787/markdown?url=https://example.com'
-```
+- `app/` — API, browser service, desktop service
+- `scripts/` — launchers and runtime helpers
+- `assets/niri/` — Niri config
+- `root/defaults/` — Selkies / desktop defaults copied into the container
+- `skills/agentbrowser-desktop-mcp/` — MCP usage guide for this repo
 
-### MCP endpoint
+## Notes
 
-```text
-http://127.0.0.1:8787/mcp
-```
-
-### Secure Bitwarden session bootstrap
-
-```text
-http://localhost:8080/auth/bw
-```
-
-Or by API:
-
-```bash
-curl -X POST http://127.0.0.1:8787/auth/bw/api \
-  -H 'Content-Type: application/json' \
-  -d '{"server_url":"https://vault.example.com","username":"tu-correo@example.com","password":"***"}'
-```
-
-### Secure login execution
-
-Example request:
-
-```bash
-curl -X POST http://127.0.0.1:8787/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"site":"example.com","account":"default"}'
-```
-
-The response returns status only, for example:
-
-- `logged_in`
-- `filled`
-- `otp_required`
-- `not_found`
-
-It does **not** return credentials or TOTP values.
-
-## Example local validation
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install playwright httpx
-python scripts/test_cdp.py
-```
-
-This writes screenshots and Markdown output into `output/`.
-
-## Security model
-
-- `.env` is ignored by git
-- CDP is bound to localhost
-- API/MCP is bound to localhost
-- live desktop is protected with basic auth
-- Bitwarden state can be persisted without exposing secrets in agent-visible output
-- secure login returns status, not secret material
-
-## Persistence
-
-The Chromium profile is stored in the `browser_profile` Docker volume, so sessions and cookies survive restarts.
-
-## Proxy support
-
-The appliance can run without a proxy locally, but also supports future outbound proxy configuration through environment variables such as:
-
-```env
-BROWSER_PROXY_SERVER=
-BROWSER_PROXY_BYPASS=localhost,127.0.0.1
-```
-
-## Project structure
-
-```text
-app/
-  browser_service.py      Browser/CDP automation and secure login logic
-  desktop_service.py      Desktop-level control helpers
-  server.py               FastAPI server and HTTP/MCP surface
-  requirements.txt        Python dependencies
-
-scripts/
-  browser-launcher.sh                 Chromium startup logic
-  browser-supervisor.conf             Process supervision config
-  nginx-default.conf                  Nginx config
-  selkies-gstreamer-entrypoint.sh     Selkies/Nginx startup glue
-  test_cdp.py                         Local validation script
-
-skills/
-  agentbrowser-desktop-mcp/           MCP usage guidance for desktop/browser control
-  browser-automation/                 Local automation CLI and usage patterns
-```
-
-## Design choices
-
-### Why Selkies
-
-Selkies provides a practical remote desktop streaming layer for containerized browser sessions without requiring a local desktop on the host.
-
-### Why headed Chromium
-
-Some workflows need a visible browser for debugging, trust, anti-bot tuning, and manual intervention.
-
-### Why CDP instead of WebDriver
-
-CDP gives a clean path for Playwright attachment and lower-friction integration with agent workflows that need an already-running browser.
-
-### Why Bitwarden-backed secure login
-
-It allows the service to perform login tasks while keeping raw credentials outside normal agent-visible traces.
-
-## Related local skills
-
-- `skills/agentbrowser-desktop-mcp/SKILL.md`
-- `skills/browser-automation/SKILL.md`
-
-## Current status
-
-AgentBrowser is a practical local appliance for:
-
-- browser automation
-- desktop-assisted web tasks
-- secure credential-blind login flows
-- rendered page extraction
-- MCP-driven agent workflows
-
-If you want to publish or extend it, the best next steps are usually:
-
-1. add usage screenshots or an architecture diagram
-2. document the MCP tools individually
-3. add deployment notes for VPS usage
-4. add CI checks for the Python service
+- This repository now tracks the current Arch/Niri/Noctalia implementation as the only supported version.
+- The previous legacy layout has been removed.

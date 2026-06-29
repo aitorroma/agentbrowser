@@ -1,0 +1,95 @@
+[bar.default]
+background_opacity = 0.86999998055398464
+contact_shadow = true
+end = [ "tray", "notifications", "clipboard", "volume", "brightness", "battery", "session" ]
+layer = "overlay"
+margin_edge = 0
+margin_ends = 0
+radius = 0
+start = [ "launcher", "workspaces" ]
+
+[lockscreen_widgets]
+enabled = false
+schema_version = 2
+widget_order = [ "lockscreen-login-box@winit", "lockscreen-login-box@HEADLESS-1", "lockscreen-login-box@WL-1" ]
+
+    [lockscreen_widgets.grid]
+    cell_size = 16
+    major_interval = 4
+    visible = true
+
+    [lockscreen_widgets.widget."lockscreen-login-box@HEADLESS-1"]
+    box_height = 70.0
+    box_width = 400.0
+    cx = 512.0
+    cy = 649.0
+    output = "HEADLESS-1"
+    rotation = 0.0
+    type = "login_box"
+
+        [lockscreen_widgets.widget."lockscreen-login-box@HEADLESS-1".settings]
+        background_color = "surface_variant"
+        background_opacity = 0.88
+        background_radius = 12.0
+        input_opacity = 1.0
+        input_radius = 6.0
+        show_login_button = true
+
+    [lockscreen_widgets.widget."lockscreen-login-box@WL-1"]
+    box_height = 70.0
+    box_width = 400.0
+    cx = 640.0
+    cy = 601.0
+    output = "WL-1"
+    rotation = 0.0
+    type = "login_box"
+
+        [lockscreen_widgets.widget."lockscreen-login-box@WL-1".settings]
+        background_color = "surface_variant"
+        background_opacity = 0.88
+        background_radius = 12.0
+        input_opacity = 1.0
+        input_radius = 6.0
+        show_login_button = true
+
+    [lockscreen_widgets.widget."lockscreen-login-box@winit"]
+    box_height = 70.0
+    box_width = 400.0
+    cx = 960.0
+    cy = 843.0
+    output = "winit"
+    rotation = 0.0
+    type = "login_box"
+
+        [lockscreen_widgets.widget."lockscreen-login-box@winit".settings]
+        background_color = "surface_variant"
+        background_opacity = 0.88
+        background_radius = 12.0
+        input_opacity = 1.0
+        input_radius = 6.0
+        show_login_button = true
+
+[shell]
+corner_radius_scale = 0.60000000894069672
+
+[theme]
+builtin = "Gruvbox"
+community_palette = "Ayu Green"
+source = "community"
+wallpaper_scheme = "m3-fruit-salad"
+
+    [theme.templates]
+    builtin_ids = [ "alacritty", "btop", "gtk3", "gtk4", "kcolorscheme", "kitty", "qt", "scroll" ]
+
+[wallpaper]
+directory = "/defaults/wallpapers"
+fill_mode = "stretch"
+
+    [wallpaper.default]
+    path = "/defaults/wallpapers/agentbrowser-green-wallpaper.png"
+
+    [wallpaper.last]
+    path = "/defaults/wallpapers/agentbrowser-green-wallpaper.png"
+
+    [wallpaper.monitors.winit]
+    path = "/defaults/wallpapers/agentbrowser-green-wallpaper.png"
