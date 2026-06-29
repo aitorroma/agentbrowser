@@ -79,6 +79,51 @@ fi
 # depends on reaching the end of this script.
 apply_selkies_branding || true
 
+# proot-apps installs drop a *.desktop launcher into ~/Desktop, which xfce/labwc
+# render as desktop icons. niri/noctalia have no desktop-icon manager, so those
+# apps become unreachable. Mirror the launchers into the XDG applications dir so
+# they show up in the niri launcher (Mod+D / fuzzel), noctalia, and the app list.
+sync_desktop_launchers() {
+  local desktop_dir="/config/Desktop"
+  local apps_dir="/config/.local/share/applications"
+  [ -d "${desktop_dir}" ] || return 0
+
+  # The baseimage may create apps_dir owned by root; we run as abc. Since the
+  # parent is abc-owned we can move the unwritable dir aside and recreate it.
+  if [ -d "${apps_dir}" ] && ! ( : > "${apps_dir}/.w" ) 2>/dev/null; then
+    mv "${apps_dir}" "${apps_dir}.root-$$" 2>/dev/null || true
+  else
+    rm -f "${apps_dir}/.w" 2>/dev/null || true
+  fi
+  mkdir -p "${apps_dir}" 2>/dev/null || true
+
+  local f dst
+  for f in "${desktop_dir}"/*.desktop; do
+    [ -e "${f}" ] || continue
+    dst="${apps_dir}/$(basename "${f}")"
+    if [ ! -e "${dst}" ] || [ "${f}" -nt "${dst}" ]; then
+      cp -f "${f}" "${dst}" 2>/dev/null || true
+    fi
+  done
+}
+
+case "${DESKTOP_SESSION_FLAVOR:-noctalia-niri}" in
+  noctalia-niri | niri-nested)
+    sync_desktop_launchers || true
+    # Keep mirroring as the user installs more proot-apps at runtime.
+    nohup sh -lc '
+      while true; do
+        sleep 8
+        for f in /config/Desktop/*.desktop; do
+          [ -e "$f" ] || continue
+          d="/config/.local/share/applications/$(basename "$f")"
+          { [ ! -e "$d" ] || [ "$f" -nt "$d" ]; } && cp -f "$f" "$d" 2>/dev/null || true
+        done
+      done
+    ' >/dev/null 2>&1 &
+    ;;
+esac
+
 # ydotoold provides uinput-level input injection that reaches native Wayland
 # apps (xdotool only reaches Xwayland). Needs /dev/uinput mapped from the host
 # (map it in docker-compose if you need host-level uinput). No-op when the device is absent.
