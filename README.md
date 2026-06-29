@@ -19,6 +19,8 @@
 
 Browser automation appliance with a real visible desktop inside Docker, Arch + Selkies + Niri + Noctalia, local CDP access for agents, full desktop control, Markdown extraction, and secure Bitwarden-assisted login flows.
 
+**Languages:** [🇬🇧 English](#agentbrowser) · [🇪🇸 Español](README.es.md)
+
 ## Demo
 
 ![AgentBrowser demo](assets/demo.gif)
