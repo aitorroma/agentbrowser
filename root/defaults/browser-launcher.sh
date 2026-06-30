@@ -16,6 +16,7 @@ LANG_LIST="${BROWSER_ACCEPT_LANGS:-${LOCALE},es}"
 DISABLE_SANDBOX="${BROWSER_DISABLE_SANDBOX:-false}"
 FORCE_RENDERER_ACCESSIBILITY="${BROWSER_FORCE_RENDERER_ACCESSIBILITY:-false}"
 OZONE_PLATFORM="${BROWSER_OZONE_PLATFORM:-x11}"
+BROWSER_BINARY="${BROWSER_BINARY:-}"
 
 mkdir -p "$PROFILE_DIR" "$OUTPUT_DIR"
 
@@ -66,7 +67,28 @@ done
 
 gsettings set org.gnome.desktop.interface toolkit-accessibility true >/dev/null 2>&1 || true
 
-if command -v google-chrome-stable >/dev/null 2>&1; then
+if [ -n "${BROWSER_BINARY}" ]; then
+  case "${BROWSER_BINARY}" in
+    chrome|google-chrome|google-chrome-stable)
+      CHROME_BIN="$(command -v google-chrome-stable)"
+      ;;
+    chromium)
+      CHROME_BIN="$(command -v chromium)"
+      ;;
+    playwright)
+      CHROME_BIN="$(
+      /opt/appliance/venv/bin/python - <<'PY'
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    print(p.chromium.executable_path)
+PY
+      )"
+      ;;
+    *)
+      CHROME_BIN="${BROWSER_BINARY}"
+      ;;
+  esac
+elif command -v google-chrome-stable >/dev/null 2>&1; then
   CHROME_BIN="$(command -v google-chrome-stable)"
 else
   CHROME_BIN="$(
@@ -83,6 +105,7 @@ args=(
   "--user-data-dir=${PROFILE_DIR}"
   "--remote-debugging-address=${CDP_BIND}"
   "--remote-debugging-port=${CDP_PORT}"
+  "--remote-allow-origins=*"
   "--password-store=basic"
   "--no-first-run"
   "--no-default-browser-check"
