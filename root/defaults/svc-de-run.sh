@@ -1,77 +1,61 @@
-#!/bin/bash
+#!/usr/bin/with-contenv bash
 
-echo "=== Iniciando sistema completo ==="
+# wayland entrypoint
 
-# Fix permissions
-chmod 666 /tmp/*.log 2>/dev/null || true
-
-# Clean stale files
-rm -f /tmp/niri-wayland-display /tmp/niri-x-display
-rm -f /config/.XDG/niri.*.sock 2>/dev/null || true
-
-# Start niri (only if not running)
-if ! pgrep -x niri >/dev/null 2>&1; then
-  echo "[1/6] Iniciando niri..."
-  sudo -u abc env DISPLAY=:1 WAYLAND_DISPLAY=wayland-1 XDG_RUNTIME_DIR=/config/.XDG /usr/sbin/niri &>/tmp/niri.log &
-  sleep 5
-else
-  echo "[1/6] niri ya está corriendo"
+# Restore branding from persistent storage
+/opt/appliance/restore-branding.sh 2>/dev/null || true
+if [[ "${PIXELFLUX_WAYLAND}" == "true" ]]; then
+  SOCKET_PATH="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY:-wayland-1}"
+  echo "[svc-de] Wayland mode: Waiting for socket at ${SOCKET_PATH}..."
+  while [ ! -e "${SOCKET_PATH}" ]; do
+    sleep 0.5
+  done
+  echo "[svc-de] ${SOCKET_PATH} found launching de"
+  cd $HOME
+  exec s6-setuidgid abc \
+    /bin/bash /defaults/startwm_wayland.sh &
+  PID=$!
+  echo "$PID" > /de-pid
+  wait "$PID"
+  exit 1
 fi
 
-# Create display files
-echo "wayland-2" > /tmp/niri-wayland-display
-echo ":2" > /tmp/niri-x-display
+# wait for X to be running
+while true; do
+  if xset q &>/dev/null; then
+    break
+  fi
+  sleep .5
+done
 
-# Start xwayland-satellite (only if not running)
-if ! pgrep -x xwayland-satellite >/dev/null 2>&1; then
-  echo "[2/6] Iniciando xwayland-satellite..."
-  sudo -u abc WAYLAND_DISPLAY=wayland-2 XDG_RUNTIME_DIR=/config/.XDG xwayland-satellite :2 &>/tmp/xwayland.log &
-  sleep 2
-else
-  echo "[2/6] xwayland-satellite ya está corriendo"
+# set resolution before starting apps
+RESOLUTION_WIDTH=${SELKIES_MANUAL_WIDTH:-1024}
+RESOLUTION_HEIGHT=${SELKIES_MANUAL_HEIGHT:-768}
+if [ "$RESOLUTION_WIDTH" = "0" ]; then RESOLUTION_WIDTH=1024; fi
+if [ "$RESOLUTION_HEIGHT" = "0" ]; then RESOLUTION_HEIGHT=768; fi
+MODELINE=$(s6-setuidgid abc cvt "${RESOLUTION_WIDTH}" "${RESOLUTION_HEIGHT}" | grep "Modeline" | sed 's/^.*Modeline //')
+MODELINE_ARGS=$(echo "$MODELINE" | tr -d '"')
+MODELINE_NAME=$(echo "$MODELINE_ARGS" | awk '{print $1}')
+if ! s6-setuidgid abc xrandr | grep -q "$MODELINE_NAME"; then
+  s6-setuidgid abc xrandr --newmode $MODELINE_ARGS
+  s6-setuidgid abc xrandr --addmode screen "$MODELINE_NAME"
+  s6-setuidgid abc xrandr --output screen --mode "$MODELINE_NAME" --dpi 96
 fi
 
-# Start selkies-desktop FIRST (only if not running)
-if ! pgrep -x selkies-desktop >/dev/null 2>&1; then
-  echo "[3/6] Iniciando selkies-desktop..."
-  sudo -u abc WAYLAND_DISPLAY=wayland-2 XDG_RUNTIME_DIR=/config/.XDG /usr/sbin/selkies-desktop &>/tmp/selkies-desktop.log &
-  sleep 2
+# set xresources
+if [ -f "${HOME}/.Xresources" ]; then
+  xrdb "${HOME}/.Xresources"
 else
-  echo "[3/6] selkies-desktop ya está corriendo"
+  echo "Xcursor.theme: whiteglass" > "${HOME}/.Xresources"
+  xrdb "${HOME}/.Xresources"
 fi
+chown abc:abc "${HOME}/.Xresources"
+chmod 777 /tmp/selkies*
 
-# Start Chrome (only if not running)
-if ! pgrep -f "chrome.*remote-debugging" >/dev/null 2>&1; then
-  echo "[4/6] Iniciando Chrome..."
-  sudo -u abc DISPLAY=:2 /opt/playwright/chromium-1228/chrome-linux64/chrome --ozone-platform=x11 --disable-dev-shm-usage --no-sandbox --remote-debugging-port=9222 &>/tmp/chrome.log &
-  sleep 3
-else
-  echo "[4/6] Chrome ya está corriendo"
-fi
-
-# Start noctalia (only if not running)
-if ! pgrep -x noctalia >/dev/null 2>&1; then
-  echo "[5/6] Iniciando noctalia..."
-  sudo -u abc WAYLAND_DISPLAY=wayland-2 XDG_RUNTIME_DIR=/config/.XDG /usr/sbin/noctalia &>/tmp/noctalia.log &
-  sleep 1
-else
-  echo "[5/6] noctalia ya está corriendo"
-fi
-
-# Start uvicorn (only if not running)
-if ! pgrep -f uvicorn >/dev/null 2>&1; then
-  echo "[6/6] Iniciando servidor MCP..."
-  cd /opt/appliance
-  /opt/appliance/venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 8787 &>/tmp/browser-api.log &
-  sleep 2
-else
-  echo "[6/6] uvicorn ya está corriendo"
-fi
-
-echo "=== Sistema iniciado ==="
-sleep 3
-echo "niri: $(pgrep -x niri | head -1)"
-echo "chrome: $(pgrep -f 'chrome.*remote-debugging' | head -1)"
-echo "uvicorn: $(pgrep -f uvicorn | head -1)"
-echo "noctalia: $(pgrep -x noctalia | head -1)"
-echo "selkies-desktop: $(pgrep -x selkies-desktop | head -1)"
+# run
+cd $HOME
+exec s6-setuidgid abc \
+  /bin/bash /defaults/startwm.sh &
+PID=$!
+echo "$PID" > /de-pid
+wait "$PID"
