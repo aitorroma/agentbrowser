@@ -75,6 +75,8 @@ Attach Playwright or any CDP-compatible client to the running browser without ex
 
 Use the local MCP/API surface to drive navigation, clicks, screenshots, evaluation, app launching, keyboard typing, and window management.
 
+> **Full tools inventory:** [docs/MCP_TOOLS.md](docs/MCP_TOOLS.md) — ~70 tools across browser, desktop, Niri, Thunar, Bitwarden, WebAuthn, and more.
+
 ### 4. Niri-aware desktop control
 
 Control workspaces, windows, screenshots, app spawning, and desktop actions through endpoints that understand the active Niri session.
