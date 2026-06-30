@@ -33,7 +33,10 @@ class BrowserService:
         self._bw_state_lock = asyncio.Lock()
         self.bw_appdata_dir = Path(os.getenv("BW_APPDATA_DIR", "/dev/shm/agentbrowser-bw"))
         self.bw_appdata_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(self.bw_appdata_dir, 0o700)
+        try:
+            os.chmod(self.bw_appdata_dir, 0o700)
+        except PermissionError:
+            pass
         self.bw_state_dir = Path(os.getenv("BW_STATE_DIR", "/data/profile/bitwarden-state"))
         self.bw_state_dir.mkdir(parents=True, exist_ok=True)
         try:

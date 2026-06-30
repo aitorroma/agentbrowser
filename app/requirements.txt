@@ -6,3 +6,4 @@ markdownify
 httpx
 mcp
 cryptography
+seleniumbase

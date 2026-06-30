@@ -7,8 +7,10 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
 
 from app.browser_service import browser_service
+from app.captcha_service import captcha_service
 from app.cua_service import cua_service
 from app.desktop_service import desktop_service
+from app.wdotool_tool import get_wdotool_tool
 
 
 class EvalRequest(BaseModel):
@@ -68,6 +70,15 @@ class AppLaunchRequest(BaseModel):
 
 class AppOpenRequest(BaseModel):
     name: str
+
+
+class BrowserCdpLaunchRequest(BaseModel):
+    browser: str = "chrome"
+    start_url: str | None = None
+    profile_dir: str | None = None
+    cdp_port: int | None = None
+    cdp_bind: str | None = None
+    force_restart: bool = False
 
 
 class ThunarOpenRequest(BaseModel):
@@ -364,6 +375,38 @@ async def app_open(name: str) -> dict[str, Any]:
 @mcp.tool()
 async def app_status(query: str) -> dict[str, Any]:
     return await desktop_service.app_status(query)
+
+
+@mcp.tool()
+async def browser_cdp_launch(
+    browser: str = "chrome",
+    start_url: str | None = None,
+    profile_dir: str | None = None,
+    cdp_port: int | None = None,
+    cdp_bind: str | None = None,
+    force_restart: bool = False,
+) -> dict[str, Any]:
+    return await desktop_service.browser_cdp_launch(
+        browser=browser,
+        start_url=start_url,
+        profile_dir=profile_dir,
+        cdp_port=cdp_port,
+        cdp_bind=cdp_bind,
+        force_restart=force_restart,
+    )
+
+
+@mcp.tool()
+async def browser_cdp_status(
+    profile_dir: str | None = None,
+    cdp_port: int | None = None,
+    cdp_bind: str | None = None,
+) -> dict[str, Any]:
+    return await desktop_service.browser_cdp_status(
+        profile_dir=profile_dir,
+        cdp_port=cdp_port,
+        cdp_bind=cdp_bind,
+    )
 
 
 @mcp.tool()
@@ -666,6 +709,103 @@ async def webauthn_disable() -> dict[str, Any]:
     return await browser_service.webauthn_disable()
 
 
+# wdotool MCP tools for Wayland mouse/keyboard control
+
+@mcp.tool()
+async def wdotool_mousemove(x: int, y: int, relative: bool = False) -> dict[str, Any]:
+    """Move mouse to absolute or relative position using wdotool (Wayland)."""
+    tool = get_wdotool_tool()
+    return await tool.mousemove(x, y, relative)
+
+
+@mcp.tool()
+async def wdotool_click(button: int = 1) -> dict[str, Any]:
+    """Click mouse button (1=left, 2=middle, 3=right) using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.click(button)
+
+
+@mcp.tool()
+async def wdotool_scroll(dx: int = 0, dy: int = 3) -> dict[str, Any]:
+    """Scroll mouse wheel using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.scroll(dx, dy)
+
+
+@mcp.tool()
+async def wdotool_type(text: str) -> dict[str, Any]:
+    """Type text using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.type_text(text)
+
+
+@mcp.tool()
+async def wdotool_key(keys: str) -> dict[str, Any]:
+    """Press key combination using wdotool (e.g., 'ctrl+c')."""
+    tool = get_wdotool_tool()
+    return await tool.key(keys)
+
+
+@mcp.tool()
+async def wdotool_search(name: str = "", app_id: str = "", pid: int = 0) -> dict[str, Any]:
+    """Search for windows using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.search(name, app_id, pid)
+
+
+@mcp.tool()
+async def wdotool_getactivewindow() -> dict[str, Any]:
+    """Get active window ID using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.getactivewindow()
+
+
+@mcp.tool()
+async def wdotool_windowactivate(window_id: str) -> dict[str, Any]:
+    """Activate (focus) a window using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.windowactivate(window_id)
+
+
+@mcp.tool()
+async def wdotool_windowclose(window_id: str) -> dict[str, Any]:
+    """Close a window using wdotool."""
+    tool = get_wdotool_tool()
+    return await tool.windowclose(window_id)
+
+
+@mcp.tool()
+async def wdotool_info() -> dict[str, Any]:
+    """Get wdotool backend info."""
+    tool = get_wdotool_tool()
+    return await tool.info()
+
+
+@mcp.tool()
+async def solve_captcha(url: str | None = None, timeout: int = 30) -> dict[str, Any]:
+    """Auto-detect and solve any supported captcha (Turnstile, reCAPTCHA,
+    Cloudflare challenge) on the current or given page using SeleniumBase CDP Mode."""
+    return await captcha_service.solve_captcha(url=url, timeout=timeout)
+
+
+@mcp.tool()
+async def solve_turnstile(url: str | None = None, timeout: int = 30) -> dict[str, Any]:
+    """Solve a Cloudflare Turnstile captcha using SeleniumBase CDP Mode."""
+    return await captcha_service.solve_turnstile(url=url, timeout=timeout)
+
+
+@mcp.tool()
+async def solve_recaptcha(url: str | None = None, timeout: int = 30) -> dict[str, Any]:
+    """Solve a Google reCAPTCHA using SeleniumBase CDP Mode."""
+    return await captcha_service.solve_recaptcha(url=url, timeout=timeout)
+
+
+@mcp.tool()
+async def solve_cloudflare(url: str | None = None, timeout: int = 30) -> dict[str, Any]:
+    """Solve a Cloudflare challenge using SeleniumBase CDP Mode."""
+    return await captcha_service.solve_cloudflare(url=url, timeout=timeout)
+
+
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     async with mcp.session_manager.run():
@@ -674,7 +814,7 @@ async def lifespan(application: FastAPI):
 
 mcp_http_app = mcp.streamable_http_app()
 app = FastAPI(title="browser-appliance", lifespan=lifespan)
-app.mount("/mcp", mcp_http_app.routes[0].endpoint)
+app.mount("/mcp", mcp_http_app)
 
 
 @app.get("/healthz")
@@ -852,6 +992,31 @@ async def desktop_app_open_http(request: AppOpenRequest) -> dict[str, Any]:
 @app.get("/desktop/apps/status")
 async def desktop_app_status_http(query: str = Query(...)) -> dict[str, Any]:
     return await desktop_service.app_status(query)
+
+
+@app.post("/desktop/browser/cdp/launch")
+async def desktop_browser_cdp_launch_http(request: BrowserCdpLaunchRequest) -> dict[str, Any]:
+    return await desktop_service.browser_cdp_launch(
+        browser=request.browser,
+        start_url=request.start_url,
+        profile_dir=request.profile_dir,
+        cdp_port=request.cdp_port,
+        cdp_bind=request.cdp_bind,
+        force_restart=request.force_restart,
+    )
+
+
+@app.get("/desktop/browser/cdp/status")
+async def desktop_browser_cdp_status_http(
+    profile_dir: str | None = Query(None),
+    cdp_port: int | None = Query(None),
+    cdp_bind: str | None = Query(None),
+) -> dict[str, Any]:
+    return await desktop_service.browser_cdp_status(
+        profile_dir=profile_dir,
+        cdp_port=cdp_port,
+        cdp_bind=cdp_bind,
+    )
 
 
 @app.post("/desktop/thunar/open")
@@ -1086,3 +1251,39 @@ async def secure_login_http(request: SecureLoginRequest) -> dict[str, Any]:
         submit=request.submit,
         auto_totp=request.auto_totp,
     )
+
+
+@app.post("/captcha/solve")
+async def captcha_solve_http(
+    url: str | None = Query(None),
+    timeout: int = Query(30, ge=5, le=120),
+) -> dict[str, Any]:
+    """Auto-detect and solve any supported captcha."""
+    return await captcha_service.solve_captcha(url=url, timeout=timeout)
+
+
+@app.post("/captcha/turnstile")
+async def captcha_turnstile_http(
+    url: str | None = Query(None),
+    timeout: int = Query(30, ge=5, le=120),
+) -> dict[str, Any]:
+    """Solve a Cloudflare Turnstile captcha."""
+    return await captcha_service.solve_turnstile(url=url, timeout=timeout)
+
+
+@app.post("/captcha/recaptcha")
+async def captcha_recaptcha_http(
+    url: str | None = Query(None),
+    timeout: int = Query(30, ge=5, le=120),
+) -> dict[str, Any]:
+    """Solve a Google reCAPTCHA."""
+    return await captcha_service.solve_recaptcha(url=url, timeout=timeout)
+
+
+@app.post("/captcha/cloudflare")
+async def captcha_cloudflare_http(
+    url: str | None = Query(None),
+    timeout: int = Query(30, ge=5, le=120),
+) -> dict[str, Any]:
+    """Solve a Cloudflare challenge."""
+    return await captcha_service.solve_cloudflare(url=url, timeout=timeout)
